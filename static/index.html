@@ -44,6 +44,17 @@
       </label>
       <p class="hint">Web pages, blog posts, or video links. One per line, up to five. Video transcripts are not pulled in.</p>
 
+      <div class="file-field">
+        <div class="file-label">Reference file <span>optional</span></div>
+        <div class="file-row" id="file-row">
+          <label class="file-button" for="attachment">Choose file</label>
+          <input id="attachment" name="attachment" type="file" accept=".pdf,.doc,.docx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain">
+          <span id="file-name">No file chosen</span>
+          <button id="file-clear" type="button" hidden>Remove</button>
+        </div>
+      </div>
+      <p class="hint">A PDF, Word document, or text file. Its text is used with the links. One file, up to 8 MB. It is not saved.</p>
+
       <div class="actions">
         <button id="generate" type="submit">Write drafts</button>
         <button id="stop" type="button" hidden>Stop</button>

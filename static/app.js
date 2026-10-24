@@ -1,5 +1,9 @@
 const form = document.querySelector("#draft-form");
 const modelSelect = document.querySelector("#model");
+const attachmentInput = document.querySelector("#attachment");
+const fileRow = document.querySelector("#file-row");
+const fileName = document.querySelector("#file-name");
+const fileClear = document.querySelector("#file-clear");
 const generateButton = document.querySelector("#generate");
 const stopButton = document.querySelector("#stop");
 const progress = document.querySelector("#progress");
@@ -14,6 +18,8 @@ const sourcesEl = document.querySelector("#sources");
 const sourceList = document.querySelector("#source-list");
 
 const drafts = { article: "", short: "" };
+const FILE_LIMIT = 8 * 1024 * 1024;
+const FILE_TYPES = new Set(["pdf", "doc", "docx", "txt"]);
 let controller = null;
 
 function words(text) {
@@ -27,6 +33,28 @@ function setBusy(busy) {
   generateButton.disabled = busy;
   stopButton.hidden = !busy;
   modelSelect.disabled = busy;
+  attachmentInput.disabled = busy;
+  fileClear.disabled = busy;
+  fileRow.classList.toggle("is-busy", busy);
+}
+
+function fileExtension(name) {
+  const base = name.split(/[/\\]/).pop() || "";
+  const dot = base.lastIndexOf(".");
+  return dot === -1 ? "" : base.slice(dot + 1).toLowerCase();
+}
+
+function showFile(file) {
+  if (!file) {
+    fileName.textContent = "No file chosen";
+    fileClear.hidden = true;
+    return;
+  }
+  const size = file.size >= 1024 * 1024
+    ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
+    : `${Math.max(1, Math.round(file.size / 1024))} KB`;
+  fileName.textContent = `${file.name} · ${size}`;
+  fileClear.hidden = false;
 }
 
 function showEmpty() {
@@ -65,7 +93,9 @@ function renderSources(sources) {
   for (const source of sources) {
     const item = document.createElement("li");
     if (source.error) {
-      item.textContent = `${source.url} — ${source.error}`;
+      item.textContent = `${source.title || source.url} — ${source.error}`;
+    } else if (source.kind === "file") {
+      item.textContent = `${source.title} · ${source.note || "attached document"}`;
     } else {
       const link = document.createElement("a");
       link.href = source.url;
@@ -131,19 +161,21 @@ form.addEventListener("submit", async (event) => {
   live.textContent = "";
   liveCard.hidden = false;
   sourcesEl.hidden = true;
-  progress.textContent = "Starting";
+  const file = attachmentInput.files[0];
+  progress.textContent = file ? `Reading ${file.name}` : "Starting";
+
+  const body = new FormData();
+  body.set("model", modelSelect.value);
+  body.set("company", document.querySelector("#company").value);
+  body.set("topics", document.querySelector("#topics").value);
+  body.set("urls", document.querySelector("#urls").value);
+  if (file) body.set("attachment", file, file.name);
 
   try {
     const response = await fetch("/api/generate", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       signal: controller.signal,
-      body: JSON.stringify({
-        model: modelSelect.value,
-        company: document.querySelector("#company").value,
-        topics: document.querySelector("#topics").value,
-        urls: document.querySelector("#urls").value,
-      }),
+      body,
     });
     if (!response.ok) {
       const failure = await response.json().catch(() => ({}));
@@ -163,6 +195,33 @@ form.addEventListener("submit", async (event) => {
 });
 
 stopButton.addEventListener("click", () => controller?.abort());
+
+attachmentInput.addEventListener("change", () => {
+  const file = attachmentInput.files[0];
+  if (!file) {
+    showFile(null);
+    return;
+  }
+  if (!FILE_TYPES.has(fileExtension(file.name))) {
+    attachmentInput.value = "";
+    showFile(null);
+    progress.textContent = "Attach a PDF, Word document, or .txt file.";
+    return;
+  }
+  if (file.size > FILE_LIMIT) {
+    attachmentInput.value = "";
+    showFile(null);
+    progress.textContent = "That file is larger than 8 MB.";
+    return;
+  }
+  progress.textContent = "";
+  showFile(file);
+});
+
+fileClear.addEventListener("click", () => {
+  attachmentInput.value = "";
+  showFile(null);
+});
 
 async function readStream(response) {
   const reader = response.body.getReader();
