@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LinkedIn drafts</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="top">
+    <div>
+      <p class="eyebrow">On this laptop</p>
+      <h1>LinkedIn drafts</h1>
+    </div>
+    <p class="lede">A long article and a short feed post, written by Ollama. Nothing is sent to a cloud model.</p>
+  </header>
+
+  <p id="status-banner" class="banner" hidden></p>
+
+  <main>
+    <form id="draft-form" class="panel">
+      <label>
+        Model
+        <select id="model" name="model" required>
+          <option value="mistral-small3.2">Mistral Small 3.2 (24B)</option>
+          <option value="gemma4:12b">Gemma 4 12B</option>
+        </select>
+      </label>
+
+      <label>
+        Company name <span>optional</span>
+        <input id="company" name="company" type="text" maxlength="120" placeholder="Cisco" autocomplete="organization">
+      </label>
+
+      <label>
+        Topics
+        <textarea id="topics" name="topics" required rows="4" placeholder="cybersecurity, agentic ops"></textarea>
+      </label>
+      <p class="hint">Separate topics with commas or new lines.</p>
+
+      <label>
+        Links <span>optional</span>
+        <textarea id="urls" name="urls" rows="4" placeholder="https://example.com/blog/post&#10;https://www.youtube.com/watch?v=..."></textarea>
+      </label>
+      <p class="hint">Web pages, blog posts, or video links. One per line, up to five. Video transcripts are not pulled in.</p>
+
+      <div class="actions">
+        <button id="generate" type="submit">Write drafts</button>
+        <button id="stop" type="button" hidden>Stop</button>
+      </div>
+      <p id="progress" class="progress" role="status"></p>
+    </form>
+
+    <section class="results" aria-live="polite">
+      <article class="panel draft-card" id="live-card" hidden>
+        <header class="card-head">
+          <h2>Draft in progress</h2>
+        </header>
+        <pre id="live" class="copy"></pre>
+      </article>
+
+      <article class="panel draft-card">
+        <header class="card-head">
+          <div>
+            <h2>LinkedIn article</h2>
+            <p id="article-count" class="count"></p>
+          </div>
+          <div class="card-actions">
+            <button type="button" data-copy="article" disabled>Copy</button>
+            <button type="button" data-download="article" disabled>Download</button>
+          </div>
+        </header>
+        <div id="article" class="copy document empty">The article will land here.</div>
+      </article>
+
+      <article class="panel draft-card">
+        <header class="card-head">
+          <div>
+            <h2>Short post</h2>
+            <p id="short-count" class="count"></p>
+          </div>
+          <div class="card-actions">
+            <button type="button" data-copy="short" disabled>Copy</button>
+            <button type="button" data-download="short" disabled>Download</button>
+          </div>
+        </header>
+        <div id="short" class="copy post empty">The shorter feed post will land here.</div>
+      </article>
+
+      <section id="sources" class="sources" hidden>
+        <h2>Sources read</h2>
+        <ul id="source-list"></ul>
+      </section>
+    </section>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>
