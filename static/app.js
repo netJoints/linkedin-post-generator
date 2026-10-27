@@ -183,6 +183,7 @@ form.addEventListener("submit", async (event) => {
     }
     await readStream(response);
   } catch (error) {
+    if (!live.textContent) liveCard.hidden = true;
     if (error.name === "AbortError") {
       progress.textContent = "Stopped.";
     } else {

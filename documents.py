@@ -121,11 +121,11 @@ def _normalize(value: str) -> str:
 
 
 def _extract_txt(data: bytes) -> str:
+    if data.startswith((b"\xff\xfe", b"\xfe\xff")):
+        return data.decode("utf-16", errors="replace")
     sample = data[:8192]
     if b"\x00" in sample:
         raise ValueError("That text file looks like a binary file.")
-    if data.startswith(b"\xff\xfe") or data.startswith(b"\xfe\xff"):
-        return data.decode("utf-16", errors="replace")
     try:
         return data.decode("utf-8-sig")
     except UnicodeDecodeError:
@@ -491,13 +491,18 @@ def _extract_pdf(data: bytes) -> str:
     pieces: list[str] = []
     for obj_id, plain in decoded.items():
         header = next((item[1] for item in objects if item[0] == obj_id), b"")
-        if b"/ObjStm" in header:
+        if b"/ObjStm" in header or b"/Image" in header or b"/ICCBased" in header:
             continue
         if b"Tj" not in plain and b"TJ" not in plain and b"BT" not in plain:
             continue
         fonts = content_fonts.get(obj_id) or {}
         pieces.append(_pdf_content_text(plain, fonts, fallback))
-    return "\n".join(piece for piece in pieces if piece.strip())
+    return _reflow_wrapped_words("\n".join(piece for piece in pieces if piece.strip()))
+
+
+def _reflow_wrapped_words(text: str) -> str:
+    """Join a word that a PDF split across two visual lines."""
+    return re.sub(r"([A-Za-z])\n([a-z])", r"\1\2", text)
 
 
 def _pdf_objects(data: bytes) -> list[tuple[int, bytes, bytes | None]]:
