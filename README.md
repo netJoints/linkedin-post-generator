@@ -149,11 +149,14 @@ Paste the text into LinkedIn yourself. This app does not log in to LinkedIn and 
 server.py           local web server and Ollama client
 documents.py        PDF, Word, and text attachment reading
 youtube.py          YouTube transcript reading
+tests/test_links.py link and transcript checks that do not call Ollama
 static/index.html   the form
 static/app.js       streaming, copy, and download
 static/styles.css
 start.sh            prerequisite checks, then python3 server.py
 requirements.txt    no third-party packages
+.github/workflows/python-app.yml  checks syntax and the tests on push to main
+pytest.ini          lets those tests import the app
 ```
 
 ## Security notes
