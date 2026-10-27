@@ -12,7 +12,7 @@
       <p class="eyebrow">On this laptop</p>
       <h1>LinkedIn drafts</h1>
     </div>
-    <p class="lede">A long article and a short feed post, written by Ollama. Nothing is sent to a cloud model.</p>
+    <p class="lede">A long article, a short feed post, and swipeable cards, written by Ollama. Nothing is sent to a cloud model.</p>
   </header>
 
   <p id="status-banner" class="banner" hidden></p>
@@ -98,12 +98,39 @@
         <div id="short" class="copy post empty">The shorter feed post will land here.</div>
       </article>
 
+      <article class="panel draft-card" id="cards-card">
+        <header class="card-head">
+          <div>
+            <h2>Cards</h2>
+            <p class="hint">Upload the PDF with LinkedIn’s document button, or the images as a multi-image post. Paste the short post as the caption. The cover is the wide image for the article. The video is the same cards, for a separate video post.</p>
+          </div>
+        </header>
+        <div class="card-actions cards-downloads">
+          <button type="button" id="cards-pdf" disabled>Download PDF</button>
+          <button type="button" id="cards-images" disabled>Download images</button>
+          <button type="button" id="cards-cover" disabled>Article cover</button>
+          <button type="button" id="cards-video" hidden disabled>Download video</button>
+        </div>
+        <div class="cards-stage">
+          <p id="cards-empty" class="empty">The cards will land here.</p>
+          <canvas id="cards-canvas" hidden aria-hidden="true"></canvas>
+        </div>
+        <p id="cards-caption" class="cards-caption"></p>
+        <div class="cards-nav" id="cards-nav" hidden>
+          <button type="button" id="cards-prev">Previous</button>
+          <button type="button" id="cards-next">Next</button>
+          <div id="cards-dots" class="cards-dots"></div>
+        </div>
+        <p id="cards-video-note" class="hint" hidden>Video export needs ffmpeg. Install it, reload this page, and the same cards can be saved as an MP4. The PDF and the images do not need it.</p>
+      </article>
+
       <section id="sources" class="sources" hidden>
         <h2>Sources read</h2>
         <ul id="source-list"></ul>
       </section>
     </section>
   </main>
+  <script src="/cards.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

@@ -14,7 +14,9 @@ from html.parser import HTMLParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+from cards import design_cards
 from documents import MAX_ATTACHMENT_BYTES, extract_document
+from media import ffmpeg_path, render_mp4
 from youtube import fetch_transcript, youtube_video_id
 
 HOST = "127.0.0.1"
@@ -367,12 +369,12 @@ def split_draft(text: str) -> tuple[str, str]:
     return article, short
 
 
-def ollama_payload(model: str, prompt: str, stream: bool) -> dict:
+def ollama_payload(model: str, prompt: str, stream: bool, system: str = SYSTEM_PROMPT) -> dict:
     payload: dict = {
         "model": model,
         "stream": stream,
         "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": system},
             {"role": "user", "content": prompt},
         ],
         "options": {"temperature": 0.5, "num_predict": 1800, "num_ctx": 8192},
@@ -382,6 +384,23 @@ def ollama_payload(model: str, prompt: str, stream: bool) -> dict:
     if model.startswith("gemma"):
         payload["think"] = False
     return payload
+
+
+def ollama_complete(model: str, system: str, prompt: str) -> str:
+    payload = ollama_payload(model, prompt, stream=False, system=system)
+    payload["format"] = "json"
+    payload["options"]["temperature"] = 0.2
+    payload["options"]["num_predict"] = 900
+    request = urllib.request.Request(
+        OLLAMA_URL,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(request, timeout=180) as response:
+        event = json.loads(response.read().decode("utf-8"))
+    if event.get("error"):
+        raise RuntimeError(str(event["error"]))
+    return str(event.get("message", {}).get("content") or "")
 
 
 def installed_models() -> list[str]:
@@ -413,14 +432,18 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/":
             self.serve_file("index.html", "text/html; charset=utf-8")
             return
-        if path in {"/styles.css", "/app.js"}:
+        if path in {"/styles.css", "/app.js", "/cards.js"}:
             content_type = "text/css; charset=utf-8" if path.endswith(".css") else "text/javascript; charset=utf-8"
             self.serve_file(path.lstrip("/"), content_type)
             return
         self.send_error(404)
 
     def do_POST(self) -> None:
-        if urllib.parse.urlparse(self.path).path != "/api/generate":
+        path = urllib.parse.urlparse(self.path).path
+        if path == "/api/video":
+            self.handle_video()
+            return
+        if path != "/api/generate":
             self.send_error(404)
             return
         length = int(self.headers.get("Content-Length", "0") or "0")
@@ -439,13 +462,34 @@ class Handler(BaseHTTPRequestHandler):
         self.stream_draft(model, company, topics, urls, attachment)
 
     def handle_health(self) -> None:
+        ffmpeg = ffmpeg_path() is not None
         try:
             installed = installed_models()
         except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError):
-            self.send_json(200, {"ollama": False, "models": []})
+            self.send_json(200, {"ollama": False, "models": [], "ffmpeg": ffmpeg})
             return
         ready = [model["id"] for model in MODELS if model_ready(installed, model["id"])]
-        self.send_json(200, {"ollama": True, "models": ready})
+        self.send_json(200, {"ollama": True, "models": ready, "ffmpeg": ffmpeg})
+
+    def handle_video(self) -> None:
+        length = int(self.headers.get("Content-Length", "0") or "0")
+        if length <= 0 or length > 25_000_000:
+            self.send_json(413, {"error": "That video request is too large."})
+            return
+        body = self.rfile.read(length)
+        try:
+            frames = frames_from_multipart(self.headers.get("Content-Type", ""), body)
+            data = render_mp4(frames)
+        except ValueError as exc:
+            self.send_json(400, {"error": str(exc)})
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "video/mp4")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Content-Disposition", 'attachment; filename="linkedin-cards.mp4"')
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(data)
 
     def serve_file(self, name: str, content_type: str) -> None:
         file_path = (STATIC_DIR / name).resolve()
@@ -539,10 +583,27 @@ class Handler(BaseHTTPRequestHandler):
             article, short = split_draft("".join(collected))
             self.write_event(
                 {
+                    "type": "draft",
+                    "article": article,
+                    "short": short,
+                    "sources": notes,
+                }
+            )
+            self.write_event({"type": "status", "message": "Designing the cards"})
+            cards = design_cards(
+                article,
+                short,
+                topics,
+                company,
+                lambda system, prompt: ollama_complete(model, system, prompt),
+            )
+            self.write_event(
+                {
                     "type": "done",
                     "article": article,
                     "short": short,
                     "sources": notes,
+                    "cards": cards,
                 }
             )
         except BrokenPipeError:
@@ -682,6 +743,26 @@ def disposition_value(header: str, key: str) -> str:
     if match:
         return match.group(1).strip().strip('"')
     return ""
+
+
+def frames_from_multipart(content_type: str, body: bytes) -> list[bytes]:
+    match = re.search(r'boundary="?([^";]+)"?', content_type, re.I)
+    if not match:
+        raise ValueError("The card images were not valid.")
+    boundary = match.group(1).encode("utf-8", errors="strict")
+    if not boundary or len(boundary) > 200:
+        raise ValueError("The card images were not valid.")
+    frames: list[bytes] = []
+    for headers, content in split_multipart(body, boundary):
+        disposition = headers.get("content-disposition", "")
+        if disposition_filename(disposition) is None:
+            continue
+        frames.append(content)
+        if len(frames) > 10:
+            raise ValueError("Use 10 cards or fewer.")
+    if not frames:
+        raise ValueError("There are no cards to turn into a video.")
+    return frames
 
 
 def disposition_filename(header: str) -> str | None:

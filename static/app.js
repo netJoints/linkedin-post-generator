@@ -124,6 +124,7 @@ async function refreshModels() {
   try {
     const response = await fetch("/api/health");
     const health = await response.json();
+    if (window.LinkedInCards) LinkedInCards.setFfmpeg(Boolean(health.ffmpeg));
     if (!health.ollama) {
       banner.hidden = false;
       banner.textContent = "Ollama is not running. Start it, then reload this page.";
@@ -162,6 +163,7 @@ form.addEventListener("submit", async (event) => {
   drafts.article = "";
   drafts.short = "";
   showEmpty();
+  if (window.LinkedInCards) LinkedInCards.reset();
   live.textContent = "";
   liveCard.hidden = false;
   sourcesEl.hidden = true;
@@ -245,6 +247,26 @@ async function readStream(response) {
   }
 }
 
+function showDraft(event) {
+  drafts.article = event.article || "";
+  drafts.short = event.short || "";
+  liveCard.hidden = true;
+  if (drafts.article) renderArticle(drafts.article);
+  else {
+    articleEl.className = "copy document empty";
+    articleEl.textContent = "The model did not return an article.";
+  }
+  if (drafts.short) renderShort(drafts.short);
+  else {
+    shortEl.className = "copy post empty";
+    shortEl.textContent = "The model did not return a short post. The article is still above.";
+  }
+  articleCount.textContent = drafts.article ? words(drafts.article) : "";
+  shortCount.textContent = drafts.short ? words(drafts.short) : "";
+  renderSources(event.sources || []);
+  enableOutputs(Boolean(drafts.article || drafts.short));
+}
+
 function handleEvent(event) {
   if (event.type === "status") {
     progress.textContent = event.message;
@@ -259,25 +281,18 @@ function handleEvent(event) {
     progress.textContent = event.message;
     return;
   }
+  if (event.type === "draft") {
+    showDraft(event);
+    progress.textContent = "Designing the cards";
+    return;
+  }
   if (event.type === "done") {
-    drafts.article = event.article || "";
-    drafts.short = event.short || "";
-    liveCard.hidden = true;
-    if (drafts.article) renderArticle(drafts.article);
-    else {
-      articleEl.className = "copy document empty";
-      articleEl.textContent = "The model did not return an article.";
-    }
-    if (drafts.short) renderShort(drafts.short);
-    else {
-      shortEl.className = "copy post empty";
-      shortEl.textContent = "The model did not return a short post. The article is still above.";
-    }
-    articleCount.textContent = drafts.article ? words(drafts.article) : "";
-    shortCount.textContent = drafts.short ? words(drafts.short) : "";
-    renderSources(event.sources || []);
-    enableOutputs(Boolean(drafts.article || drafts.short));
-    progress.textContent = "Ready to paste into LinkedIn.";
+    if (event.article || event.short) showDraft(event);
+    if (window.LinkedInCards) LinkedInCards.show(event.cards || { slides: [] });
+    const ready = event.cards && event.cards.slides && event.cards.slides.length;
+    progress.textContent = ready
+      ? "Ready. Copy the text, then download the cards and attach them on LinkedIn."
+      : "Ready to paste into LinkedIn.";
   }
 }
 
