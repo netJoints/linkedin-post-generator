@@ -18,7 +18,7 @@ There is no database. Drafts are not saved on the server. Copy or download them 
 | Free disk | About 8 GB for Gemma, about 15 GB for Mistral, plus a few GB of overhead. Pull both only if you have about 30 GB free. |
 | Python | 3.10 or newer. The app uses the standard library only. |
 | Ollama | 0.31.0 or newer. Gemma 4 12B refuses to load on older releases. |
-| Network, once | `ollama pull` downloads the model weights. After that, generation stays on this machine. Fetching a link you paste also uses the network, from this app, not from a cloud LLM. |
+| Network | `ollama pull` downloads the model weights once. After that, generation stays on this machine. Each pasted link, and each YouTube transcript, is fetched from this laptop when you write a draft. That fetch is not a cloud LLM. |
 
 No vector database, SQLite, Docker, or API key is required.
 
@@ -97,7 +97,7 @@ The server listens on `127.0.0.1` only. Other machines on the network cannot ope
 1. Choose **Mistral Small 3.2** or **Gemma 4 12B**.
 2. Company name is optional. Example: `Cisco`. The model may mention that name. It is instructed not to invent products, announcements, or metrics.
 3. Topics are required. Separate them with commas or new lines. Example: `cybersecurity, agentic ops`. Up to 12 topics.
-4. Links are optional, one per line, up to five. A normal web page or blog post is fetched and trimmed to text. A YouTube link includes the transcript when YouTube provides captions. English is preferred, then any other language. A Vimeo link contributes the video title and author only.
+4. Links are optional, one per line, up to five. A normal web page or blog post is fetched and trimmed to text. A YouTube watch link, a `youtu.be` link, or a shorts link includes the transcript when YouTube provides captions. English is preferred, then any other language. A Vimeo link contributes the video title and author only. A channel or playlist page does not.
 5. A reference file is optional. Choose one `.pdf`, `.doc`, `.docx`, or `.txt` file, up to 8 MB. Its text is read on this laptop and used with the links. The file is not saved. A scanned PDF with no text layer cannot be read.
 6. Click **Write drafts**. The first reply after a cold start is slower because Ollama loads the model into memory.
 7. Copy or download the article (`linkedin-article.txt`) and the short post (`linkedin-post.txt`).
@@ -136,6 +136,8 @@ Paste the text into LinkedIn yourself. This app does not log in to LinkedIn and 
 **Port 8765 is already in use.** Stop the other copy of `server.py`, or change `PORT` in `server.py` and open that port instead.
 
 **A link is rejected.** Use a public `https://` URL with no user or password in it. Internal hostnames and `localhost` are blocked on purpose.
+
+**A YouTube link says "title only, no transcript."** That video has no captions, or YouTube refused the caption track. The draft still runs from the title. Use a watch, `youtu.be`, or shorts link to one video. After you pull a new version, stop the old `server.py` and start it again.
 
 **The short post is missing.** The article is still shown. Run it again. A smaller model is more likely to skip the second section.
 
