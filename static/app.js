@@ -103,7 +103,11 @@ function renderSources(sources) {
       link.rel = "noreferrer";
       link.textContent = source.title || source.url;
       item.append(link);
-      const note = source.kind === "video" ? " · video title only, no transcript" : " · page text";
+      const note = source.note
+        ? ` · ${source.note}`
+        : source.kind === "video"
+          ? " · title only, no transcript"
+          : " · page text";
       item.append(document.createTextNode(note));
     }
     sourceList.append(item);

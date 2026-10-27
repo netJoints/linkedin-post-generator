@@ -2,7 +2,7 @@
 
 A local writing desk for LinkedIn. It runs on your laptop, calls [Ollama](https://ollama.com) on `127.0.0.1`, and does not send the draft to a cloud model.
 
-You give it a company name (optional), one or more topics, up to five links (optional), and one PDF, Word, or text file (optional). It writes two plain-text pieces you can paste into LinkedIn:
+You give it a company name (optional), one or more topics, up to five links (optional), and one PDF, Word, or text file (optional). A YouTube link can include its transcript. It writes two plain-text pieces you can paste into LinkedIn:
 
 - a longer article
 - a shorter feed post
@@ -97,7 +97,7 @@ The server listens on `127.0.0.1` only. Other machines on the network cannot ope
 1. Choose **Mistral Small 3.2** or **Gemma 4 12B**.
 2. Company name is optional. Example: `Cisco`. The model may mention that name. It is instructed not to invent products, announcements, or metrics.
 3. Topics are required. Separate them with commas or new lines. Example: `cybersecurity, agentic ops`. Up to 12 topics.
-4. Links are optional, one per line, up to five. A normal web page or blog post is fetched and trimmed to text. A YouTube or Vimeo link contributes the video title and author only. Transcripts are not downloaded.
+4. Links are optional, one per line, up to five. A normal web page or blog post is fetched and trimmed to text. A YouTube link includes the transcript when YouTube provides captions. English is preferred, then any other language. A Vimeo link contributes the video title and author only.
 5. A reference file is optional. Choose one `.pdf`, `.doc`, `.docx`, or `.txt` file, up to 8 MB. Its text is read on this laptop and used with the links. The file is not saved. A scanned PDF with no text layer cannot be read.
 6. Click **Write drafts**. The first reply after a cold start is slower because Ollama loads the model into memory.
 7. Copy or download the article (`linkedin-article.txt`) and the short post (`linkedin-post.txt`).
@@ -108,7 +108,7 @@ Paste the text into LinkedIn yourself. This app does not log in to LinkedIn and 
 
 1. The browser posts the form to `POST /api/generate` on this laptop.
 2. Each link is checked before it is opened. Only `http` and `https` are allowed. Links with a username or password are rejected. Loopback, private, link-local, and other non-public addresses are rejected.
-3. Page text is extracted locally and capped so the prompt stays bounded. If a file was attached, its text is extracted in memory the same way and added as another source. PDF, Word, and text files are parsed as data. They are not opened in an editor and not saved.
+3. Page text is extracted locally and capped so the prompt stays bounded. A YouTube link is handled separately: the app asks YouTube's player endpoint for a caption track and downloads that track. The caption address is opened only when its host is YouTube or Google video. If a file was attached, its text is extracted in memory the same way and added as another source. PDF, Word, and text files are parsed as data. They are not opened in an editor and not saved.
 4. The prompt is sent to Ollama's chat API. Gemma's thinking mode is turned off so the reply is the draft, not a reasoning trace.
 5. The reply is split into the article and the short post and streamed back to the page.
 
@@ -118,10 +118,11 @@ Paste the text into LinkedIn yourself. This app does not log in to LinkedIn and 
 
 - Five links, each read is capped at about 500 KB and 12 seconds.
 - About 4,000 characters of text are kept from each page.
+- About 8,000 characters of each YouTube transcript are kept. Videos without captions, and Vimeo links, contribute the title only.
 - One attachment, up to 8 MB. About 8,000 characters of its text are kept. Encrypted PDFs, and scans without a text layer, are rejected.
 - Topics and the company field are length-capped.
 - The model can still be vague or wrong. Read the draft before you post it. If you did not supply a source, the model is writing from the topic names only.
-- Video pages do not include a transcript.
+- A YouTube video with no captions, or a transcript YouTube refuses to serve, is used as a title only. The draft still runs.
 - Generation time depends on the laptop. Gemma on an Apple Silicon machine with the model already loaded often finishes in under a minute. Mistral Small 3.2 takes longer and uses most of a 24 GB machine while it runs.
 
 ## Troubleshooting
@@ -145,6 +146,7 @@ Paste the text into LinkedIn yourself. This app does not log in to LinkedIn and 
 ```
 server.py           local web server and Ollama client
 documents.py        PDF, Word, and text attachment reading
+youtube.py          YouTube transcript reading
 static/index.html   the form
 static/app.js       streaming, copy, and download
 static/styles.css
@@ -155,7 +157,7 @@ requirements.txt    no third-party packages
 ## Security notes
 
 - No API keys, tokens, or passwords are stored in this repo. Ollama on localhost does not need a key for these models.
-- The fetcher does not accept credentials inside a URL.
+- The fetcher does not accept credentials inside a URL. YouTube transcripts are read without an API key and without browser cookies. A caption address from the player response is opened only after the same public-address check as any other link, and only when the host is YouTube or Google video.
 - An attached file is read in memory and discarded. The original file is not written to disk. Only PDF, Word (`.doc`, `.docx`), and `.txt` contents are accepted, and only after the bytes match that type.
 - Outbound page fetches use the operating system's TLS stack. This app does not ship certificates or its own cryptography.
 - Do not paste customer data or other sensitive material into the form if that conflicts with the rules of the machine you are using. The prompt stays on the laptop, and so does the model, but the text is still processed by local software you installed.
