@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>LinkedIn drafts — local writing desk</title>
+    <link rel="canonical" href="https://netjoints.github.io/linkedin-post-generator/">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;800&amp;display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="slides.css">
+  </head>
+  <body>
+    <div class="deck" id="deck">
+      <div class="progress" id="progress"></div>
+      <main class="stage" id="stage" aria-live="polite">
+
+        <section class="slide" data-title="Title">
+          <p class="kicker b" style="--d:0">A writing desk on your laptop</p>
+          <h1 class="b" style="--d:1">LinkedIn drafts,<br><span class="grad">written on this machine</span></h1>
+          <p class="lede b" style="--d:2">Give it a company, topics, up to five links, and one file. A local model writes a longer article and a shorter post. You paste them into LinkedIn yourself.</p>
+          <div class="row mt-m b" style="--d:3">
+            <span class="pill live"><span class="dot"></span>Ollama on this laptop</span>
+            <span class="pill next"><span class="dot"></span>No API key</span>
+            <span class="pill shadow"><span class="dot"></span>Nothing is published</span>
+          </div>
+          <svg class="dg" style="margin-top:70px" viewBox="0 0 1420 170" aria-hidden="true">
+            <path id="t1" class="flow" d="M40 85 H1380"/>
+            <g class="g" style="--d:4"><rect class="box cyan" x="20" y="45" width="250" height="80" rx="14"/><text class="t-md" x="145" y="92" text-anchor="middle">Topics and sources</text></g>
+            <g class="g" style="--d:5"><rect class="box violet" x="500" y="45" width="250" height="80" rx="14"/><text class="t-md" x="625" y="92" text-anchor="middle">Local model</text></g>
+            <g class="g" style="--d:6"><rect class="box green" x="1020" y="45" width="360" height="80" rx="14"/><text class="t-md" x="1200" y="92" text-anchor="middle">Article and short post</text></g>
+            <circle class="packet" r="7"><animateMotion dur="4.2s" repeatCount="indefinite"><mpath href="#t1"/></animateMotion></circle>
+            <circle class="packet violet" r="7"><animateMotion dur="4.2s" begin="1.4s" repeatCount="indefinite"><mpath href="#t1"/></animateMotion></circle>
+            <circle class="packet green" r="7"><animateMotion dur="4.2s" begin="2.8s" repeatCount="indefinite"><mpath href="#t1"/></animateMotion></circle>
+          </svg>
+          <div class="slide-foot"><span>linkedin-post-generator</span><span>127.0.0.1:8765</span></div>
+          <aside class="notes">
+            <p>Open with the boundary: the model runs on the laptop. The app does not log in to LinkedIn and does not post.</p>
+            <p>Two outputs: a longer article and a shorter feed post. Both are plain text you copy or download.</p>
+          </aside>
+        </section>
+
+        <section class="slide" data-title="What you give it">
+          <p class="kicker b" style="--d:0">The form</p>
+          <h2 class="b" style="--d:1">Four fields. Only the topics are required.</h2>
+          <div class="grid-4 grow mt-m">
+            <article class="card accent-cyan b" style="--d:2">
+              <h3>Company</h3>
+              <p>Optional. Example: Cisco. The model may use the name. It is told not to invent products, announcements, or metrics.</p>
+            </article>
+            <article class="card accent-green b" style="--d:3">
+              <h3>Topics</h3>
+              <p>Required. Commas or new lines. Example: cybersecurity, agentic ops. Up to 12 topics.</p>
+            </article>
+            <article class="card accent-violet b" style="--d:4">
+              <h3>Links</h3>
+              <p>Optional. One per line, up to five. Pages are read as text. A YouTube link can include its transcript.</p>
+            </article>
+            <article class="card accent-amber b" style="--d:5">
+              <h3>One file</h3>
+              <p>Optional. A PDF, Word document, or .txt file, up to 8 MB. It is read in memory and not saved.</p>
+            </article>
+          </div>
+          <aside class="notes">
+            <p>If there is no link and no file, the model writes from the topic names only. Say that out loud so people do not treat a thin draft as sourced.</p>
+          </aside>
+        </section>
+
+        <section class="slide" data-title="What comes back">
+          <p class="kicker b" style="--d:0">Two plain-text pieces</p>
+          <h2 class="b" style="--d:1">An article for the long form, and a post for the feed.</h2>
+          <div class="grid-2 grow mt-m">
+            <article class="card accent-cyan b" style="--d:2">
+              <h3>Article</h3>
+              <p class="mt-s">The first line is the title. Then 500 to 700 words in short paragraphs. It ends with one question for the reader. Download it as linkedin-article.txt.</p>
+            </article>
+            <article class="card accent-green b" style="--d:3">
+              <h3>Short post</h3>
+              <p class="mt-s">90 to 140 words. The first line is a hook that can stand alone. It ends with one question and exactly three hashtags. Download it as linkedin-post.txt.</p>
+            </article>
+          </div>
+          <p class="lede mt-m b" style="--d:4">No markdown, no HTML, no asterisks. The text is meant to be pasted.</p>
+          <aside class="notes">
+            <p>If the short post is missing, the article is still shown. A smaller model is more likely to skip the second section. Run it again.</p>
+          </aside>
+        </section>
+
+        <section class="slide divider" data-title="The path">
+          <p class="kicker b" style="--d:0">One click</p>
+          <h1 class="b" style="--d:1">How a draft<br><span class="grad">moves</span></h1>
+          <p class="lede b" style="--d:2">The browser, the sources, and the model all stay on this laptop. A link or a caption is fetched from here. The writing is not sent to a cloud model.</p>
+          <div class="big-num">01</div>
+          <aside class="notes">
+            <p>Pause on the boundary before the diagram. Generation stays local. Fetching a public page or a YouTube caption does use the network, from this app.</p>
+          </aside>
+        </section>
+
+        <section class="slide" data-title="On this laptop">
+          <p class="kicker b" style="--d:0">The request</p>
+          <h2 class="b" style="--d:1">Sources come in. The model answers on localhost.</h2>
+          <svg class="dg grow" viewBox="0 0 1420 560" role="img" aria-label="The form talks to the local server, which reads sources and calls Ollama">
+            <rect class="boundary" x="20" y="36" width="1380" height="230" rx="22"/>
+            <text class="t-lab" x="48" y="28">THIS LAPTOP</text>
+            <path id="p-form" class="flow" d="M250 150 H470"/>
+            <path id="p-model" class="flow green" d="M760 150 H980"/>
+            <g class="g" style="--d:1"><rect class="box cyan" x="40" y="100" width="210" height="100" rx="16"/><text class="t-md" x="145" y="145" text-anchor="middle">Browser</text><text class="t-sm" x="145" y="172" text-anchor="middle">127.0.0.1:8765</text></g>
+            <g class="g" style="--d:2"><rect class="box violet" x="470" y="100" width="290" height="100" rx="16"/><text class="t-md" x="615" y="145" text-anchor="middle">Draft server</text><text class="t-sm" x="615" y="172" text-anchor="middle">checks every link first</text></g>
+            <g class="g" style="--d:3"><rect class="box green" x="980" y="100" width="380" height="100" rx="16"/><text class="t-md" x="1170" y="145" text-anchor="middle">Ollama</text><text class="t-sm" x="1170" y="172" text-anchor="middle">127.0.0.1:11434</text></g>
+            <path id="p-page" class="flow" d="M180 400 V320 H615 V200"/>
+            <path id="p-yt" class="flow amber" d="M615 400 V200"/>
+            <path id="p-file" class="flow violet" d="M1080 400 V320 H615 V200"/>
+            <g class="g" style="--d:4"><rect class="box" x="50" y="400" width="260" height="90" rx="16"/><text class="t-md" x="180" y="452" text-anchor="middle">Public page</text></g>
+            <g class="g" style="--d:5"><rect class="box amber" x="485" y="400" width="260" height="90" rx="16"/><text class="t-md" x="615" y="452" text-anchor="middle">YouTube captions</text></g>
+            <g class="g" style="--d:6"><rect class="box violet" x="950" y="400" width="260" height="90" rx="16"/><text class="t-md" x="1080" y="452" text-anchor="middle">PDF, Word, text</text></g>
+            <circle class="packet" r="6"><animateMotion dur="2.6s" repeatCount="indefinite"><mpath href="#p-form"/></animateMotion></circle>
+            <circle class="packet green" r="6"><animateMotion dur="2.6s" begin="0.6s" repeatCount="indefinite"><mpath href="#p-model"/></animateMotion></circle>
+            <circle class="packet" r="6"><animateMotion dur="3.4s" begin="0.2s" repeatCount="indefinite"><mpath href="#p-page"/></animateMotion></circle>
+            <circle class="packet amber" r="6"><animateMotion dur="2.8s" begin="0.8s" repeatCount="indefinite"><mpath href="#p-yt"/></animateMotion></circle>
+            <circle class="packet violet" r="6"><animateMotion dur="3.4s" begin="1.1s" repeatCount="indefinite"><mpath href="#p-file"/></animateMotion></circle>
+          </svg>
+          <aside class="notes">
+            <p>The server listens on 127.0.0.1 only. Other machines on the network cannot open it.</p>
+            <p>Each link is checked before it is opened. Only http and https. No username or password. Loopback, private, and link-local addresses are rejected.</p>
+          </aside>
+        </section>
+
+        <section class="slide" data-title="YouTube transcript">
+          <p class="kicker b" style="--d:0">A link can carry what was said</p>
+          <h2 class="b" style="--d:1">A YouTube video contributes its transcript when captions exist.</h2>
+          <svg class="dg" viewBox="0 0 1420 250" aria-hidden="true">
+            <path id="y1" class="flow" d="M250 110 H390"/>
+            <path id="y2" class="flow" d="M680 110 H820"/>
+            <path id="y3" class="flow green" d="M1110 110 H1180"/>
+            <g class="g" style="--d:2"><rect class="box amber" x="30" y="60" width="220" height="100" rx="16"/><text class="t-md" x="140" y="105" text-anchor="middle">Watch, short,</text><text class="t-md" x="140" y="132" text-anchor="middle">or youtu.be</text></g>
+            <g class="g" style="--d:3"><rect class="box" x="390" y="60" width="290" height="100" rx="16"/><text class="t-md" x="535" y="105" text-anchor="middle">Caption track</text><text class="t-sm" x="535" y="132" text-anchor="middle">English, then any language</text></g>
+            <g class="g" style="--d:4"><rect class="box cyan" x="820" y="60" width="290" height="100" rx="16"/><text class="t-md" x="965" y="105" text-anchor="middle">8,000 characters</text><text class="t-sm" x="965" y="132" text-anchor="middle">kept for the prompt</text></g>
+            <g class="g" style="--d:5"><rect class="box green" x="1180" y="60" width="210" height="100" rx="16"/><text class="t-md" x="1285" y="118" text-anchor="middle">The draft</text></g>
+            <circle class="packet amber" r="6"><animateMotion dur="2.2s" repeatCount="indefinite"><mpath href="#y1"/></animateMotion></circle>
+            <circle class="packet" r="6"><animateMotion dur="2.2s" begin="0.5s" repeatCount="indefinite"><mpath href="#y2"/></animateMotion></circle>
+            <circle class="packet green" r="6"><animateMotion dur="1.6s" begin="0.9s" repeatCount="indefinite"><mpath href="#y3"/></animateMotion></circle>
+          </svg>
+          <div class="grid-2 mt-s">
+            <article class="card accent-amber b" style="--d:6">
+              <h3>No captions</h3>
+              <p>The draft still runs. The source list says “title only, no transcript.” A channel or playlist page is not one video.</p>
+            </article>
+            <article class="card accent-violet b" style="--d:7">
+              <h3>Vimeo</h3>
+              <p>Title and author only. This deck’s transcript path is for YouTube.</p>
+            </article>
+          </div>
+          <aside class="notes">
+            <p>The watch page often has no caption text, and a direct fetch can be refused. The app asks YouTube’s player endpoint for a caption track, then downloads that track.</p>
+            <p>A caption address is opened only when the host is YouTube or Google video, after the same public-address check as any other link. No API key and no browser cookies.</p>
+          </aside>
+        </section>
+
+        <section class="slide" data-title="A reference file">
+          <p class="kicker b" style="--d:0">Optional attachment</p>
+          <h2 class="b" style="--d:1">One file joins the links as background, then it is discarded.</h2>
+          <div class="grid-3 grow mt-m">
+            <article class="card accent-cyan b" style="--d:2">
+              <h3>What is accepted</h3>
+              <p>PDF, Word .doc or .docx, or .txt. Up to 8 MB. About 8,000 characters of the text are kept. UTF-16 text is read.</p>
+            </article>
+            <article class="card accent-green b" style="--d:3">
+              <h3>How it is read</h3>
+              <p>The bytes are checked against the type. The text is extracted in memory. The original file is not written to disk.</p>
+            </article>
+            <article class="card accent-amber b" style="--d:4">
+              <h3>What is refused</h3>
+              <p>A scanned PDF with no text layer. An encrypted PDF. A file whose bytes do not match PDF, Word, or plain text.</p>
+            </article>
+          </div>
+          <aside class="notes">
+            <p>The model is told to use the document as background and not to contradict it. Text inside the file is reference material. It is not a set of instructions.</p>
+          </aside>
+        </section>
+
+        <section class="slide" data-title="What is refused">
+          <p class="kicker b" style="--d:0">Before anything is opened</p>
+          <h2 class="b" style="--d:1">A link has to be a public page. A caption has to be a YouTube host.</h2>
+          <ul class="ticks mt-m">
+            <li class="b" style="--d:2">Only http and https. A username or password in the link is rejected.<small>The same check runs again if the site redirects.</small></li>
+            <li class="b" style="--d:3">Localhost, private, link-local, and other non-public addresses are blocked.<small>The app does not fetch the laptop’s own network from a pasted link.</small></li>
+            <li class="b" style="--d:4">A YouTube caption address is opened only for YouTube or Google video.<small>A caption file that declares a document type or an entity is not parsed.</small></li>
+            <li class="b" style="--d:5">Words inside a page, a transcript, or a file are reference, not orders.<small>The model is told to leave out any claim the sources do not support.</small></li>
+          </ul>
+          <aside class="notes">
+            <p>There is still no database. Drafts are not saved on the server. Copy or download them from the page.</p>
+            <p>Do not paste customer data or other sensitive material if that conflicts with the rules of the machine you are using. The prompt stays on the laptop, and so does the model.</p>
+          </aside>
+        </section>
+
+        <section class="slide" data-title="Two models">
+          <p class="kicker b" style="--d:0">Choose one in the form</p>
+          <h2 class="b" style="--d:1">Pull at least one. The page disables a model that is not installed.</h2>
+          <div class="grid-2 grow mt-m">
+            <article class="card accent-violet b" style="--d:2">
+              <h3>Mistral Small 3.2</h3>
+              <p class="mt-s">Tag mistral-small3.2. About 15 GB. Stronger instruction following and a 128K context window. Prefer it when the laptop has 24 GB of memory.</p>
+            </article>
+            <article class="card accent-cyan b" style="--d:3">
+              <h3>Gemma 4 12B</h3>
+              <p class="mt-s">Tag gemma4:12b. About 8 GB. Faster and lighter. Prefer it on a 16 GB laptop. Thinking mode is turned off so the reply is the draft.</p>
+            </article>
+          </div>
+          <p class="lede mt-m b" style="--d:4">Ollama 0.31.0 or newer. Gemma 4 12B refuses to load on older releases. The first reply after a cold start is slower because the model is loading.</p>
+          <aside class="notes">
+            <p>start.sh checks Python, checks that Ollama is running, and checks that at least the expected model names are installed. If one is missing it prints the ollama pull command and exits.</p>
+          </aside>
+        </section>
+
+        <section class="slide" data-title="Limits">
+          <p class="kicker b" style="--d:0">What is kept</p>
+          <h2 class="b" style="--d:1">Each source is capped so the prompt stays bounded.</h2>
+          <div class="bars mt-m">
+            <div class="bar-row b" style="--d:2">
+              <span>Web page</span>
+              <div class="bar-track"><div class="bar-fill" style="--w:50%;--d:2"></div></div>
+              <span class="bar-num">4,000 characters</span>
+            </div>
+            <div class="bar-row b" style="--d:3">
+              <span>YouTube transcript</span>
+              <div class="bar-track"><div class="bar-fill green" style="--w:100%;--d:3"></div></div>
+              <span class="bar-num">8,000 characters</span>
+            </div>
+            <div class="bar-row b" style="--d:4">
+              <span>Attached file</span>
+              <div class="bar-track"><div class="bar-fill violet" style="--w:100%;--d:4"></div></div>
+              <span class="bar-num">8,000 characters</span>
+            </div>
+          </div>
+          <div class="row mt-m">
+            <span class="pill next b" style="--d:5"><span class="dot"></span>5 links</span>
+            <span class="pill shadow b" style="--d:6"><span class="dot"></span>About 500 KB and 12 seconds each</span>
+            <span class="pill live b" style="--d:7"><span class="dot"></span>One file, 8 MB</span>
+          </div>
+          <aside class="notes">
+            <p>The page bars are drawn against an 8,000-character scale, so a web page is half as long as a transcript or a file. Five links at the full page cap still fit the point: the prompt is bounded on purpose.</p>
+            <p>Read the draft before you post it. The model can still be vague or wrong.</p>
+          </aside>
+        </section>
+
+        <section class="slide" data-title="Run it">
+          <p class="kicker b" style="--d:0">On the laptop</p>
+          <h2 class="b" style="--d:1">Install a model, start the desk, paste the draft yourself.</h2>
+          <ul class="ticks mt-m">
+            <li class="b" style="--d:2">ollama pull mistral-small3.2<small>or ollama pull gemma4:12b</small></li>
+            <li class="b" style="--d:3">./start.sh<small>Then open 127.0.0.1:8765. Stop it with Ctrl+C.</small></li>
+            <li class="b" style="--d:4">Copy or download the two text files<small>This app does not log in to LinkedIn.</small></li>
+          </ul>
+          <p class="lede mt-m b" style="--d:5"><a class="c-cyan" href="https://github.com/netJoints/linkedin-post-generator">github.com/netJoints/linkedin-post-generator</a></p>
+          <div class="big-num">Q&amp;A</div>
+          <aside class="notes">
+            <p>There is nothing to pip install. Python 3.10 or newer. The app uses the standard library only.</p>
+            <p>Leave Ollama running. If the page says Ollama is not running, open the Ollama app or run ollama serve, then reload.</p>
+          </aside>
+        </section>
+
+      </main>
+      <nav class="controls" aria-label="Slide controls">
+        <a href="https://github.com/netJoints/linkedin-post-generator" title="Project repository">Repo</a>
+        <button type="button" id="prevBtn" aria-label="Previous slide">←</button>
+        <span class="count" id="count">1 / 1</span>
+        <button type="button" id="nextBtn" aria-label="Next slide">→</button>
+        <button type="button" id="gridBtn" title="Overview (O)">Overview</button>
+        <button type="button" id="notesBtn" title="Speaker notes (N)">Notes</button>
+        <button type="button" id="fsBtn" title="Fullscreen (F)">Present</button>
+      </nav>
+      <p class="help">← → or click to navigate · F fullscreen · N notes · O overview</p>
+      <aside class="notes-panel" aria-label="Speaker notes">
+        <header><span id="notesTitle"></span><span class="timer" id="timer">00:00</span></header>
+        <div id="notesBody"></div>
+      </aside>
+      <div class="overview" role="dialog" aria-label="Slide overview">
+        <h2>All slides — click to jump · Esc to close</h2>
+        <div class="overview-grid" id="overviewGrid"></div>
+      </div>
+    </div>
+    <script src="slides.js"></script>
+  </body>
+</html>

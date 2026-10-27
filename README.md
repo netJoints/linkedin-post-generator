@@ -92,6 +92,12 @@ Then open [http://127.0.0.1:8765](http://127.0.0.1:8765).
 
 The server listens on `127.0.0.1` only. Other machines on the network cannot open it. Stop it with Ctrl+C in that terminal.
 
+## Slides
+
+The same story as an animated deck: [netjoints.github.io/linkedin-post-generator](https://netjoints.github.io/linkedin-post-generator/).
+
+Arrow keys or a click move between slides. F is fullscreen. N opens speaker notes. O opens the overview. The deck is static HTML in `docs/`. It does not run the draft server.
+
 ## Use the form
 
 1. Choose **Mistral Small 3.2** or **Gemma 4 12B**.
@@ -157,6 +163,7 @@ start.sh            prerequisite checks, then python3 server.py
 requirements.txt    no third-party packages
 .github/workflows/python-app.yml  checks syntax and the tests on push to main
 pytest.ini          lets those tests import the app
+docs/               animated slide deck for GitHub Pages
 ```
 
 ## Security notes
