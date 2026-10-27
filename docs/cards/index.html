@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Swipeable cards for LinkedIn — linkedin-post-generator</title>
+  <link rel="canonical" href="https://netjoints.github.io/linkedin-post-generator/cards/">
+  <meta name="description" content="Why this writing desk builds swipeable LinkedIn cards: engagement by format, the card sequence, and how the files stay on your laptop.">
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #1c1915;
+      --muted: #655e54;
+      --paper: #f3efe6;
+      --card: #fffdf9;
+      --line: #e3d9cb;
+      --accent: #0b5cab;
+      --accent-dark: #084883;
+      --info: #0b5cab;
+      --ok: #1f7a4d;
+      --warn: #8a4b12;
+      --sans: "Avenir Next", "Segoe UI", sans-serif;
+      --serif: "Iowan Old Style", Palatino, Georgia, serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font: 500 1.05rem/1.55 var(--sans);
+    }
+    a { color: var(--accent-dark); }
+    header, main, footer { width: min(920px, calc(100% - 32px)); margin-inline: auto; }
+    header { padding: 36px 0 8px; }
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--accent);
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    h1, h2, h3 { letter-spacing: -0.03em; line-height: 1.15; }
+    h1 { margin: 0 0 12px; font-size: 2.35rem; }
+    h2 { margin: 2.2rem 0 0.6rem; font-size: 1.45rem; }
+    h3 { margin: 0 0 8px; font-size: 1.15rem; }
+    p { margin: 0.6rem 0; }
+    .lede { max-width: 62ch; color: var(--muted); }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin: 22px 0 8px;
+    }
+    .stat, .note, .callout, .panel, table, .chart {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+    }
+    .stat { padding: 16px 16px 14px; }
+    .stat b { display: block; font-size: 1.8rem; letter-spacing: -0.03em; }
+    .stat span, .fine, caption { color: var(--muted); font-size: 0.86rem; }
+    .stat.ok b { color: var(--ok); }
+    .stat.info b { color: var(--info); }
+    .fine { margin: 8px 2px 0; }
+    .callout, .panel { padding: 16px 18px; margin: 18px 0; }
+    .callout h2, .panel h3 { margin-top: 0; }
+    .split { display: grid; grid-template-columns: 280px 1fr; gap: 22px; align-items: start; margin-top: 12px; }
+    .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    table { width: 100%; border-collapse: collapse; overflow: hidden; margin: 12px 0; }
+    th, td { padding: 10px 12px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); font-size: 0.92rem; }
+    th { font-size: 0.78rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+    tr:last-child td { border-bottom: 0; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    tr.lead td:first-child { box-shadow: inset 3px 0 0 var(--ok); }
+    tr.warn td:first-child { box-shadow: inset 3px 0 0 var(--warn); }
+    caption { caption-side: bottom; text-align: left; padding: 10px 12px 12px; }
+    .chart { padding: 16px 16px 8px; margin: 12px 0; }
+    .legend { display: flex; gap: 16px; margin: 0 0 12px; font-size: 0.86rem; }
+    .swatch { width: 12px; height: 12px; display: inline-block; margin-right: 6px; vertical-align: -1px; }
+    .swatch.y2025 { background: var(--info); }
+    .swatch.y2026 { background: var(--ok); }
+    .row { display: grid; grid-template-columns: 9.5rem 1fr; gap: 10px; align-items: center; margin: 0 0 10px; }
+    .bars { display: grid; gap: 4px; }
+    .bar { height: 16px; color: white; font-size: 0.72rem; line-height: 16px; padding-left: 6px; min-width: 2.4rem; }
+    .bar.y2025 { background: var(--info); }
+    .bar.y2026 { background: var(--ok); }
+    .axis { margin: 4px 0 8px 9.5rem; color: var(--muted); font-size: 0.75rem; display: flex; justify-content: space-between; }
+    .frame {
+      width: 280px;
+      height: 350px;
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      background: #071422;
+      color: #f4f8fc;
+      border-radius: 14px;
+    }
+    .frame.paper { background: #f3f6fa; color: #152033; }
+    .frame .kicker { margin: 0; color: #8fd8f3; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+    .frame.paper .kicker { color: #0b5cab; }
+    .frame h3 { margin: 0 0 8px; font-size: 1.35rem; color: inherit; }
+    .frame p { margin: 0; color: #c5d4e2; font-size: 0.95rem; }
+    .frame.paper p { color: #3d4c5e; }
+    .frame-foot { display: flex; justify-content: space-between; align-items: center; color: #93a9bd; font-size: 0.8rem; }
+    .frame.paper .frame-foot { color: #5c6b7c; }
+    .dots { display: flex; gap: 5px; align-items: center; }
+    .dots i { width: 6px; height: 6px; background: #35506a; display: block; }
+    .dots i.on { width: 14px; background: #049fd9; }
+    .nav { display: flex; gap: 8px; margin-top: 10px; }
+    button {
+      border-radius: 999px;
+      padding: 8px 14px;
+      font: 700 0.88rem/1 var(--sans);
+      cursor: pointer;
+    }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .nav button { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+    .nav button.primary { background: var(--accent); color: white; border: 0; }
+    footer { padding: 8px 0 48px; color: var(--muted); font-size: 0.92rem; }
+    @media (max-width: 760px) {
+      .stats, .split, .pair, .row { grid-template-columns: 1fr; }
+      .axis { margin-left: 0; }
+      h1 { font-size: 1.9rem; }
+      table { display: block; overflow-x: auto; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <p class="eyebrow">linkedin-post-generator</p>
+    <h1>Yes. Build the swipeable cards first.</h1>
+    <p class="lede">A picture can help a LinkedIn post. A generated photograph is the weak version of that idea. The posts people actually swipe are designed cards: a hook, one idea per card, a checklist, and a close. LinkedIn shows them as a document you click through, or as a multi-image post. Both are made on this laptop from the draft you already write, with no image API and no LinkedIn login.</p>
+  </header>
+  <main>
+    <section class="stats" aria-label="Headline comparisons">
+      <div class="stat ok"><b>6.40%</b><span>Document engagement, company pages, Q3 2026</span></div>
+      <div class="stat"><b>3.50%</b><span>Text-only engagement, same quarter</span></div>
+      <div class="stat info"><b>1.39×</b><span>Document reach vs a typical personal post</span></div>
+    </section>
+    <p class="fine">Company-page rates are Socialinsider averages, engagements divided by impressions, Q3 2026 update on their 2026 LinkedIn benchmarks page. The 1.39× figure is AuthoredUp’s median-impressions multiplier for personal profiles, March 2025–February 2026. The two studies measure different populations and are not averaged together below.</p>
+
+    <aside class="callout">
+      <h2>What you have been seeing in the feed</h2>
+      <p>Those postcard slides with a next arrow and a row of dots are a native document post. You upload one PDF, PPTX, or DOCX. LinkedIn paginates it. Their help page caps the file at 100 MB and 300 pages, and it says video and animation inside the document are dropped and shown as still pages. A short video is a second file, made from the same cards, and uploaded as a video post.</p>
+    </aside>
+
+    <h2>Company pages: documents and multi-image still lead</h2>
+    <p>Across 1.3 million LinkedIn business posts, native documents were the top format for 2025 at 7.00% average engagement, up from 6.10% in 2024. By Q3 2026, documents and multi-image posts were tied at 6.40%, and both still sat well above a single image, text, and links. Video fell harder than the swipe formats.</p>
+
+    <figure class="chart">
+      <div class="legend">
+        <span><i class="swatch y2025"></i>2025 average engagement rate</span>
+        <span><i class="swatch y2026"></i>Q3 2026 average engagement rate</span>
+      </div>
+      <div class="row"><div>Native document</div><div class="bars"><div class="bar y2025" style="width:87.5%">7.00%</div><div class="bar y2026" style="width:80%">6.40%</div></div></div>
+      <div class="row"><div>Multi-image</div><div class="bars"><div class="bar y2025" style="width:80.625%">6.45%</div><div class="bar y2026" style="width:80%">6.40%</div></div></div>
+      <div class="row"><div>Video</div><div class="bars"><div class="bar y2025" style="width:75%">6.00%</div><div class="bar y2026" style="width:65.625%">5.25%</div></div></div>
+      <div class="row"><div>Single image</div><div class="bars"><div class="bar y2025" style="width:66.25%">5.30%</div><div class="bar y2026" style="width:58.75%">4.70%</div></div></div>
+      <div class="row"><div>Text only</div><div class="bars"><div class="bar y2025" style="width:56.25%">4.50%</div><div class="bar y2026" style="width:43.75%">3.50%</div></div></div>
+      <div class="row"><div>Link</div><div class="bars"><div class="bar y2025" style="width:40.625%">3.25%</div><div class="bar y2026" style="width:31.25%">2.50%</div></div></div>
+      <div class="axis" aria-hidden="true"><span>0%</span><span>Engagement rate</span><span>8%</span></div>
+      <figcaption class="fine">Average engagement rate (engagements / impressions). Bar length is the rate divided by 8%. Source: Socialinsider, LinkedIn Organic Benchmarks 2026. The 2025 series is their annual table. The Q3 2026 series is the quarterly narrative on the same page, read 26 Oct 2026. Polls are omitted here and shown on the personal-profile table, where their reach-without-engagement pattern is clearer.</figcaption>
+    </figure>
+
+    <h2>Personal profiles: the carousel wins reach, a single image wins rate</h2>
+    <p>This app writes in a practitioner’s voice, so the personal-profile study is the closer match. On that set, a document is the only written format that beats a typical post on both reach and engagement count. A single image has the highest engagement rate. Video’s median reach fell from 1,157 impressions to 740 over the year. The long article is the weakest feed format in the set.</p>
+    <table>
+      <caption>Medians for personal profiles, March 2025–February 2026. Source: AuthoredUp, “LinkedIn Engagement Rate in 2026.” Engagement rate is their calculated rate from median engagements divided by median impressions. Reach multiplier is their figure against the median post in that dataset.</caption>
+      <thead>
+        <tr><th>Format</th><th class="num">Median impressions</th><th class="num">Engagement rate</th><th class="num">Reach vs median</th><th>What to ship</th></tr>
+      </thead>
+      <tbody>
+        <tr class="warn"><td>Poll</td><td class="num">1,529</td><td class="num">0.65%</td><td class="num">1.78×</td><td>Skip. Seen, rarely used.</td></tr>
+        <tr class="lead"><td>Document / carousel</td><td class="num">1,198</td><td class="num">2.92%</td><td class="num">1.39×</td><td>Lead asset. PDF plus a PNG set.</td></tr>
+        <tr><td>Single image</td><td class="num">1,031</td><td class="num">3.49%</td><td class="num">1.20×</td><td>Hook card, when the story is one idea.</td></tr>
+        <tr><td>Text only</td><td class="num">921</td><td class="num">2.28%</td><td class="num">1.07×</td><td>Already shipped.</td></tr>
+        <tr class="warn"><td>Video</td><td class="num">740</td><td class="num">3.38%</td><td class="num">0.86×</td><td>Second export. Same cards, separate post.</td></tr>
+        <tr><td>Article</td><td class="num">596</td><td class="num">2.01%</td><td class="num">0.69×</td><td>Cover image only. Not the traffic engine.</td></tr>
+      </tbody>
+    </table>
+
+    <aside class="callout">
+      <h2>A third study agrees on the ranking, not on the rate</h2>
+      <p>Buffer’s 2026 format study, covering tens of millions of posts, puts LinkedIn carousels at a 21.77% median engagement rate, then video at 7.35%, images at 6.52%, and text at 3.18%. That rate uses Buffer’s sample and formula, so it is not drawn on the chart above. LinkedIn’s own creator guidance also pushes video. The measured engagement still favors the swipeable document, which is why the video is a free second file rather than the thing this app builds first.</p>
+    </aside>
+
+    <div class="split">
+      <div>
+        <div class="frame" id="frame">
+          <p class="kicker" id="kicker"></p>
+          <div>
+            <h3 id="title"></h3>
+            <p id="body"></p>
+          </div>
+          <div class="frame-foot">
+            <span id="count"></span>
+            <span class="dots" id="dots"></span>
+          </div>
+        </div>
+        <div class="nav">
+          <button type="button" id="prev">Previous</button>
+          <button type="button" id="next" class="primary">Next</button>
+        </div>
+        <p class="fine">4:5 frame, 1080×1350 scaled down. Arrows and dots are the same idea as the deck on the project home page. LinkedIn draws those controls itself once the PDF is uploaded.</p>
+      </div>
+      <div>
+        <h2>The card sequence that gets swiped to the end</h2>
+        <p>Guides that track this format in 2026 converge on the same shape. Six to ten pages. Portrait, because a phone is where most of the feed is read. One idea per page, under about 40 words. Body type large enough to read at a third of the design size. The first card earns the swipe. The second-to-last card is the one people save. The last card asks for one action.</p>
+        <p>Click through the frame. It is a template, not a generated post. The words on each card come from the article and the short post this app writes, and only from claims those drafts were allowed to make.</p>
+        <table>
+          <thead><tr><th>Card</th><th>Job</th><th>Source in this app</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>Hook, 6–12 words</td><td>First lines of the short post</td></tr>
+            <tr><td>2</td><td>Why it matters</td><td>Opening of the article, if needed</td></tr>
+            <tr><td>3–8</td><td>One sourced idea</td><td>A claim the draft already made</td></tr>
+            <tr><td>9</td><td>Checklist people screenshot</td><td>The article’s points, compressed</td></tr>
+            <tr><td>10</td><td>One ask</td><td>You choose it. The model does not invent it.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <h2>Other products already do the pretty version</h2>
+    <p>The market is crowded with cloud carousel makers. They take a topic or a URL and return a designed PDF, sometimes an MP4. Prices for the AI tier cluster around $15 to $69 a month, and the free tiers watermark the export. None of them is this product: a local model, sources you supplied, and a refusal to invent a number.</p>
+    <table>
+      <caption>Prices and feature lists are from vendor comparison pages read 26 Oct 2026, including Supaslides’ 2026 pricing roundup, PostNitro’s Taplio comparison, Oakgen’s October 2026 tool survey, and imejis.io’s carousel-maker roundup. Confirm a price on the vendor’s site before treating it as current.</caption>
+      <thead><tr><th>Product</th><th>What it makes</th><th>Where it runs</th><th>Price signal</th></tr></thead>
+      <tbody>
+        <tr><td>PostNitro</td><td>Carousel from a topic, URL, or text. PDF and MP4.</td><td>Cloud. Posts to several networks.</td><td>Free with a watermark. Paid from about $15/month.</td></tr>
+        <tr><td>Taplio</td><td>LinkedIn post plus a carousel PDF, then scheduling.</td><td>Cloud. LinkedIn only.</td><td>AI credits sit on the higher tier, about $49–$69/month.</td></tr>
+        <tr><td>ContentDrips</td><td>Carousels from articles and from YouTube.</td><td>Cloud.</td><td>Entry around $15/month.</td></tr>
+        <tr><td>AuthoredUp</td><td>Text-first slides inside a LinkedIn writing tool.</td><td>Cloud.</td><td>Pro at $19.95/month.</td></tr>
+        <tr><td>aiCarousels, Supaslides, and the rest</td><td>Prompt to a themed deck.</td><td>Cloud.</td><td>Mostly $10–$20/month, watermark on the free export.</td></tr>
+        <tr class="lead"><td>This app</td><td>A long article, a short post, and the cards.</td><td>This laptop. Ollama on 127.0.0.1. You paste the text and upload the file.</td><td>No key, no account, no watermark.</td></tr>
+      </tbody>
+    </table>
+
+    <h2>What gets built, in order</h2>
+    <p>The deck on the project home page is the motion reference: next, previous, a page count, and a progress mark, on a 1600×900 stage. That stage is 16:9, which is the wrong shape for a phone feed. The cards keep the interaction and use a 1080×1350 canvas. The words are HTML, not an image model. Diffusion models still misspell, and Ollama’s experimental image generation was removed on 4 Aug 2026 and had not returned as of the 12 Oct 2026 release notes.</p>
+    <table>
+      <thead><tr><th>Step</th><th>Asset</th><th>How it stays on the laptop</th></tr></thead>
+      <tbody>
+        <tr class="lead"><td>1</td><td>A slide script of 6–10 cards</td><td>The same local model, after the draft exists. It may only restate claims the draft already made.</td></tr>
+        <tr class="lead"><td>2</td><td>Four templates: hook, point, checklist, close</td><td>HTML and CSS at 1080×1350. Type is real text, so it stays sharp and editable. No new Python package.</td></tr>
+        <tr class="lead"><td>3</td><td>A preview with arrows and dots</td><td>The browser. You can read a card before anything is exported.</td></tr>
+        <tr><td>4</td><td>PDF, a PNG per card, one hook image, one wide cover</td><td>Exported in the browser. PDF for the document post. PNGs for a multi-image post. The hook image is the single-image fallback. The wide image is the article cover.</td></tr>
+        <tr><td>5</td><td>A 20–35 second MP4</td><td>Only if ffmpeg is installed, detected the way Ollama is detected. H.264, 1080×1350, 30 fps, about 4 seconds per card.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="pair">
+      <article class="panel">
+        <h3>Document post · upload this</h3>
+        <p>Flattened PDF, every page 1080×1350, RGB, ideally under 10 MB. LinkedIn accepts PDF, PPT, PPTX, DOC, and DOCX up to 100 MB and 300 pages. PDF is the format that renders consistently. Give the document a title. You upload it with the short post as the caption.</p>
+        <p class="fine">Safe type: hook around 80–110 px, body at least 36 px, nothing under 28 px, margins of about 80 px. Zoom the preview to a third and read it there.</p>
+      </article>
+      <article class="panel">
+        <h3>Video post · second file</h3>
+        <p>LinkedIn’s organic video rules: MP4, from 3 seconds on desktop to 15 minutes, 75 KB to 5 GB, aspect ratio between 1:2.4 and 2.4:1. A 4:5 frame at 1080×1350 and 30 fps sits inside that and fills a phone. Keep words off the edges, where the player chrome sits.</p>
+        <p class="fine">Do not expect the PDF itself to animate. LinkedIn’s document help says animations are shown as stills. The motion lives only in the MP4.</p>
+      </article>
+    </div>
+
+    <h2>What would not earn the likes</h2>
+    <p>A generated scene with a caption baked into the pixels. A 16:9 export of the existing product deck. A link post, which is the lowest format on the company-page chart, at 2.50% in Q3 2026. A card that states a percentage the sources never gave you. Any of those can be built. They are not the posts that get saved.</p>
+
+    <h2>Sources</h2>
+    <p>
+      <a href="https://www.socialinsider.io/social-media-benchmarks/linkedin">Socialinsider, LinkedIn Organic Benchmarks 2026</a>
+      ·
+      <a href="https://authoredup.com/blog/how-to-calculate-engagement-rate-on-linkedin">AuthoredUp, engagement by format, personal profiles</a>
+      ·
+      <a href="https://buffer.com/resources/data-best-content-format-social-media/">Buffer, best content format, 2026</a>
+      ·
+      <a href="https://www.linkedin.com/help/linkedin/answer/a518909">LinkedIn Help, document posts</a>
+      ·
+      <a href="https://www.linkedin.com/help/linkedin/answer/a7486279">LinkedIn Help, native video</a>
+    </p>
+    <p class="fine">Read 26 Oct 2026. Format advice on page size also draws on Oktopost’s April 2026 carousel spec and the 2026 size guides from Social Scheduler and Decktopus. Those are practitioner guides, not LinkedIn documentation. LinkedIn’s own document page requires a consistent page size and does not publish a required pixel size.</p>
+  </main>
+  <footer>
+    <p>A normal page in this repository, at <code>docs/cards/index.html</code>. The animated deck is on the <a href="../">project home page</a>. The writing desk itself stays on your laptop.</p>
+  </footer>
+  <script>
+    (function () {
+      var slides = [
+        ["01  Hook", "Agentic ops fails in the handoff", "Six to twelve words. This is the only card most people see before they decide to swipe."],
+        ["02  Setup", "The model is not the bottleneck", "Two lines on why the reader should care. Skip this card when the hook already carries the context."],
+        ["03  One idea", "Name the decision a human still owns", "One claim, taken from the draft. If the sources do not support it, the card does not exist."],
+        ["04  One idea", "Log the tool call, not the vibe", "Same layout, same type size, same place for the page number. Readers swipe faster when they do not have to reorient."],
+        ["05  One idea", "Keep the source next to the claim", "A link, a transcript line, or a sentence from the attached file. No invented customers, quotes, or percentages."],
+        ["06  Recap", "Three things to keep", "The checklist card. This is the page people screenshot and save."],
+        ["07  Close", "One ask, chosen by you", "The model does not invent a job title or speak for a company."]
+      ];
+      var index = 0;
+      var frame = document.getElementById("frame");
+      var kicker = document.getElementById("kicker");
+      var title = document.getElementById("title");
+      var body = document.getElementById("body");
+      var count = document.getElementById("count");
+      var dots = document.getElementById("dots");
+      var prev = document.getElementById("prev");
+      var next = document.getElementById("next");
+      slides.forEach(function (_, i) {
+        var mark = document.createElement("i");
+        dots.appendChild(mark);
+      });
+      function show(nextIndex) {
+        index = Math.max(0, Math.min(slides.length - 1, nextIndex));
+        var slide = slides[index];
+        frame.className = (index === 0 || index === slides.length - 1) ? "frame" : "frame paper";
+        kicker.textContent = slide[0];
+        title.textContent = slide[1];
+        body.textContent = slide[2];
+        count.textContent = (index + 1) + " / " + slides.length;
+        Array.prototype.forEach.call(dots.children, function (mark, i) {
+          mark.className = i === index ? "on" : "";
+        });
+        prev.disabled = index === 0;
+        next.disabled = index === slides.length - 1;
+      }
+      prev.addEventListener("click", function () { show(index - 1); });
+      next.addEventListener("click", function () { show(index + 1); });
+      show(0);
+    }());
+  </script>
+</body>
+</html>

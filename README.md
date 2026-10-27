@@ -2,12 +2,13 @@
 
 A local writing desk for LinkedIn. It runs on your laptop, calls [Ollama](https://ollama.com) on `127.0.0.1`, and does not send the draft to a cloud model.
 
-You give it a company name (optional), one or more topics, up to five links (optional), and one PDF, Word, or text file (optional). A YouTube link can include its transcript. It writes two plain-text pieces you can paste into LinkedIn:
+You give it a company name (optional), one or more topics, up to five links (optional), and one PDF, Word, or text file (optional). A YouTube link can include its transcript. It writes two plain-text pieces you can paste into LinkedIn, then a set of swipeable cards from that same draft:
 
 - a longer article
 - a shorter feed post
+- portrait cards for a LinkedIn document post, plus a wide cover for the article
 
-There is no database. Drafts are not saved on the server. Copy or download them from the page.
+There is no database. Drafts are not saved on the server. Copy or download them from the page. The cards are drawn in the browser. No image service is called, and no API key is stored.
 
 ## What you need
 
@@ -98,6 +99,12 @@ The same story as an animated deck: [netjoints.github.io/linkedin-post-generator
 
 Arrow keys or a click move between slides. F is fullscreen. N opens speaker notes. O opens the overview. The deck is static HTML in `docs/`. It does not run the draft server.
 
+## Why the cards
+
+The research note behind the swipeable cards is a normal web page, not a Cursor link: [netjoints.github.io/linkedin-post-generator/cards/](https://netjoints.github.io/linkedin-post-generator/cards/).
+
+It lives at `docs/cards/index.html` and is published with the rest of the GitHub Pages site. It compares LinkedIn formats, shows the card sequence, and explains why the PDF, the images, and the video stay on this laptop.
+
 ## Use the form
 
 1. Choose **Mistral Small 3.2** or **Gemma 4 12B**.
@@ -105,10 +112,11 @@ Arrow keys or a click move between slides. F is fullscreen. N opens speaker note
 3. Topics are required. Separate them with commas or new lines. Example: `cybersecurity, agentic ops`. Up to 12 topics.
 4. Links are optional, one per line, up to five. A normal web page or blog post is fetched and trimmed to text. A YouTube watch link, a `youtu.be` link, or a shorts link includes the transcript when YouTube provides captions. English is preferred, then any other language. A Vimeo link contributes the video title and author only. A channel or playlist page does not.
 5. A reference file is optional. Choose one `.pdf`, `.doc`, `.docx`, or `.txt` file, up to 8 MB. Its text is read on this laptop and used with the links. The file is not saved. A scanned PDF with no text layer cannot be read.
-6. Click **Write drafts**. The first reply after a cold start is slower because Ollama loads the model into memory.
+6. Click **Write drafts**. The first reply after a cold start is slower because Ollama loads the model into memory. After the text is written, the same model designs the cards. If that reply is unusable, the cards are built from the draft text instead.
 7. Copy or download the article (`linkedin-article.txt`) and the short post (`linkedin-post.txt`).
+8. Download the cards. **Download PDF** is the file you attach with LinkedIn’s document button. **Download images** is a zip of PNGs for a multi-image post. **Article cover** is a wide PNG for the long article. **Download video**, when ffmpeg is installed, is an MP4 of the same cards, about four seconds each, for a separate video post.
 
-Paste the text into LinkedIn yourself. This app does not log in to LinkedIn and does not publish.
+Paste the text into LinkedIn yourself, and upload the file yourself. This app does not log in to LinkedIn and does not publish. Use the short post as the caption. A document and a link preview do not belong on the same post, so attach the PDF or the images, not a link as well. Use the video on its own post if you want a video.
 
 ## How a request works
 
@@ -116,7 +124,7 @@ Paste the text into LinkedIn yourself. This app does not log in to LinkedIn and 
 2. Each link is checked before it is opened. Only `http` and `https` are allowed. Links with a username or password are rejected. Loopback, private, link-local, and other non-public addresses are rejected.
 3. Page text is extracted locally and capped so the prompt stays bounded. A YouTube link is handled separately: the app asks YouTube's player endpoint for a caption track and downloads that track. The caption address is opened only when its host is YouTube or Google video. If a file was attached, its text is extracted in memory the same way and added as another source. PDF, Word, and text files are parsed as data. They are not opened in an editor and not saved.
 4. The prompt is sent to Ollama's chat API. Gemma's thinking mode is turned off so the reply is the draft, not a reasoning trace.
-5. The reply is split into the article and the short post and streamed back to the page.
+5. The reply is split into the article and the short post and streamed back to the page. Those two pieces are shown while a second, shorter request asks the same local model for the card text. The cards may only restate the draft. A number that was not in the draft drops the model’s cards, and the page builds them from the draft instead. The browser then draws each card at 1080×1350.
 
 `GET /api/health` reports whether Ollama is up and which of the two models are installed. The page calls that when it loads.
 
@@ -129,7 +137,8 @@ Paste the text into LinkedIn yourself. This app does not log in to LinkedIn and 
 - Topics and the company field are length-capped.
 - The model can still be vague or wrong. Read the draft before you post it. If you did not supply a source, the model is writing from the topic names only.
 - A YouTube video with no captions, or a transcript YouTube refuses to serve, is used as a title only. The draft still runs.
-- Generation time depends on the laptop. Gemma on an Apple Silicon machine with the model already loaded often finishes in under a minute. Mistral Small 3.2 takes longer and uses most of a 24 GB machine while it runs.
+- Generation time depends on the laptop. Gemma on an Apple Silicon machine with the model already loaded often finishes in under a minute. Mistral Small 3.2 takes longer and uses most of a 24 GB machine while it runs. The cards are a second pass after that, so the page stays on “Designing the cards” for a bit.
+- The deck is 6 to 10 cards: a hook, one idea per card, a short checklist, and the question from the draft. It does not invent a statistic to make a card look busier.
 
 ## Troubleshooting
 
@@ -147,28 +156,36 @@ Paste the text into LinkedIn yourself. This app does not log in to LinkedIn and 
 
 **The short post is missing.** The article is still shown. Run it again. A smaller model is more likely to skip the second section.
 
+**The video button is missing.** ffmpeg is not on the PATH. Install it, reload the page, and write the draft again. The PDF, the images, and the article cover do not need ffmpeg.
+
+**The cards look plain.** They are type, not a generated photograph. LinkedIn document posts that get read are large words on a steady layout. The first card is the hook. Upload the PDF, and LinkedIn adds the arrows and the page dots.
+
 **The laptop fans stay loud.** That is the model running on the CPU or GPU. Close other large apps before using Mistral Small 3.2.
 
 ## Project layout
 
 ```
 server.py           local web server and Ollama client
+cards.py            card text from the draft, with a local-model pass in front of it
+media.py            optional MP4 export through ffmpeg
 documents.py        PDF, Word, and text attachment reading
 youtube.py          YouTube transcript reading
 tests/test_links.py link and transcript checks that do not call Ollama
+tests/test_cards.py card text and video-frame checks
 static/index.html   the form
 static/app.js       streaming, copy, and download
+static/cards.js     card drawing, PDF, PNG zip, and the video request
 static/styles.css
 start.sh            prerequisite checks, then python3 server.py
 requirements.txt    no third-party packages
 .github/workflows/python-app.yml  checks syntax and the tests on push to main
 pytest.ini          lets those tests import the app
-docs/               animated slide deck for GitHub Pages
+docs/               GitHub Pages: the animated deck, and docs/cards/ for the research note
 ```
 
 ## Security notes
 
-- No API keys, tokens, or passwords are stored in this repo. Ollama on localhost does not need a key for these models.
+- No API keys, tokens, or passwords are stored in this repo. Ollama on localhost does not need a key for these models. Card drawing and the PDF stay in the browser. The video endpoint only runs ffmpeg on files just drawn for that download, in a temporary folder that is deleted afterward. It does not take a key.
 - The fetcher does not accept credentials inside a URL. YouTube transcripts are read without an API key and without browser cookies. A caption address from the player response is opened only after the same public-address check as any other link, and only when the host is YouTube or Google video.
 - An attached file is read in memory and discarded. The original file is not written to disk. Only PDF, Word (`.doc`, `.docx`), and `.txt` contents are accepted, and only after the bytes match that type.
 - Outbound page fetches use the operating system's TLS stack. This app does not ship certificates or its own cryptography.
