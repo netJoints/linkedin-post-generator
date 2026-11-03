@@ -54,6 +54,10 @@ Rules:
 - Sound like a practitioner. Do not use filler such as "in today's rapidly evolving landscape", "delve", "leverage", "game-changer", or "I'm excited to share".
 - Do not assign yourself a job title, and do not write as an official company spokesperson.
 - Mention the company only when one was provided. Do not claim what that company built, sold, or announced unless a source excerpt says so.
+- Open on the operational problem. A company or product name comes after that problem is clear.
+- The short post is the caption for a native video of the cards. Do not tell the reader to watch, click, or follow a link.
+- Never put a URL or a lnkd.in short link in the short post. The app lists source links in a separate first comment.
+- Close with one question under 18 words. Name a specific choice or tradeoff from the draft, and offer two concrete options when the draft supports them. Do not ask how an organization is leveraging, approaching, or thinking about the topic, and do not ask what the reader thinks in general.
 """
 
 
@@ -319,6 +323,59 @@ def source_block(sources: list[dict[str, str]]) -> str:
     return "\n\n".join(chunks)
 
 
+_URL_PHRASE = re.compile(
+    r"(?ix)"
+    r"(?:\s*[\(\[]\s*)?"
+    r"(?:(?:\band\b|\bor\b|,)\s*)?"
+    r"(?:(?:read(?:\s+more)?|learn\s+more|see(?:\s+also)?|via|at|from|here|in|source|sources|link|links)\b\s*[:\-–—]?\s*)?"
+    r"(?:https?://\S+|www\.\S+|\blnkd\.in/\S+|\blinkedin\.com/\S+)"
+    r"[\)\].,;]*"
+)
+_LINK_LINE = re.compile(
+    r"(?i)^(?:read(?:\s+more)?|learn\s+more|see(?:\s+also)?|more\s+here|source|sources|link|links|details(?:\s+here)?|full\s+(?:post|article|write-?up))\s*[:\-–—.]?\s*$"
+)
+
+
+def strip_post_urls(text: str) -> str:
+    """Drop URLs from the caption. Those links are pasted as the first comment."""
+    paragraphs = []
+    for paragraph in re.split(r"\n\s*\n", text.strip()):
+        lines = []
+        for raw_line in paragraph.splitlines():
+            had_url = _URL_PHRASE.search(raw_line) is not None
+            line = _URL_PHRASE.sub(" ", raw_line)
+            line = re.sub(r"\(\s*\)|\[\s*\]", " ", line)
+            line = re.sub(r"\s+([,.;:!?])", r"\1", line)
+            line = re.sub(r"\s{2,}", " ", line).strip(" \t-–—:|,")
+            if had_url and raw_line.rstrip().endswith((".", "?", "!")) and line and line[-1] not in ".?!":
+                line += raw_line.rstrip()[-1]
+            if not line or _LINK_LINE.match(line):
+                continue
+            if had_url and len(line.split()) < 4 and not line.startswith("#"):
+                continue
+            lines.append(line)
+        if lines:
+            paragraphs.append("\n".join(lines))
+    return "\n\n".join(paragraphs).strip()
+
+
+def first_comment(sources: list[dict[str, str]]) -> str:
+    """List the links the user supplied, for the comment under the video."""
+    blocks = []
+    seen: set[str] = set()
+    for source in sources:
+        url = clean_space(source.get("url") or "")
+        if not url or url in seen:
+            continue
+        seen.add(url)
+        title = clean_space(source.get("title") or "")[:180]
+        blocks.append(f"{title}\n{url}" if title and title != url else url)
+    if not blocks:
+        return ""
+    label = "Source" if len(blocks) == 1 else "Sources"
+    return f"{label}\n\n" + "\n\n".join(blocks)
+
+
 def build_prompt(company: str, topics: list[str], sources: list[dict[str, str]]) -> str:
     company_line = company or "Not specified"
     topic_line = "; ".join(topics)
@@ -344,10 +401,15 @@ Return exactly two sections, in this order, with nothing before the first marker
 {ARTICLE_MARK}
 The first line is the article title and nothing else.
 Then a blank line.
-Then a LinkedIn article of 500 to 700 words. Use short paragraphs. Stay specific to the topics. End with one question for the reader.
+Then a LinkedIn article of 500 to 700 words. Use short paragraphs. Stay specific to the topics. Name a source by its title when you need it. You may include a URL in the article. End with one question under 18 words that names a specific choice or tradeoff from the article, with two concrete options when the article supports them.
 
 {SHORT_MARK}
-A LinkedIn post of 90 to 140 words. The first line is a hook and can stand alone. Use plain paragraphs. End with one question, then a blank line and exactly 3 hashtags based on the topics.
+A caption for the video of these cards, 80 to 130 words. The video is attached, so this text does not recap every card and does not mention a link.
+The first line is one sentence that can stand alone. It names the operational problem. It is not a question, and it does not start with a company name.
+Then two or three short paragraphs in the reader's language. Name what is slow, then what changes. Short sentences. Write continuous prose, with no labels for the paragraphs.
+Do not include a URL, a lnkd.in link, a "link in comments" line, or a "read more" line. URL lines in the source excerpts stay out of this caption.
+End with one question under 18 words. Name the specific delay, choice, or tradeoff already in the draft, and offer two concrete options when the draft supports them.
+Then a blank line and exactly 3 hashtags based on the topics. The hashtags are on their own lines.
 """
 
 
@@ -581,11 +643,14 @@ class Handler(BaseHTTPRequestHandler):
                     if event.get("done"):
                         break
             article, short = split_draft("".join(collected))
+            short = strip_post_urls(short)
+            comment = first_comment(sources)
             self.write_event(
                 {
                     "type": "draft",
                     "article": article,
                     "short": short,
+                    "comment": comment,
                     "sources": notes,
                 }
             )
@@ -602,6 +667,7 @@ class Handler(BaseHTTPRequestHandler):
                     "type": "done",
                     "article": article,
                     "short": short,
+                    "comment": comment,
                     "sources": notes,
                     "cards": cards,
                 }

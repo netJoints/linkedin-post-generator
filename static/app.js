@@ -12,12 +12,18 @@ const liveCard = document.querySelector("#live-card");
 const live = document.querySelector("#live");
 const articleEl = document.querySelector("#article");
 const shortEl = document.querySelector("#short");
+const commentEl = document.querySelector("#comment");
 const articleCount = document.querySelector("#article-count");
 const shortCount = document.querySelector("#short-count");
 const sourcesEl = document.querySelector("#sources");
 const sourceList = document.querySelector("#source-list");
 
-const drafts = { article: "", short: "" };
+const drafts = { article: "", short: "", comment: "" };
+const DOWNLOADS = {
+  article: "linkedin-article.txt",
+  short: "linkedin-post.txt",
+  comment: "linkedin-comment.txt",
+};
 const FILE_LIMIT = 8 * 1024 * 1024;
 const FILE_TYPES = new Set(["pdf", "doc", "docx", "txt"]);
 let controller = null;
@@ -60,8 +66,10 @@ function showFile(file) {
 function showEmpty() {
   articleEl.className = "copy document empty";
   shortEl.className = "copy post empty";
+  commentEl.className = "copy post empty";
   articleEl.textContent = "The article will land here.";
   shortEl.textContent = "The shorter feed post will land here.";
+  commentEl.textContent = "Source links will land here when you supply them.";
   articleCount.textContent = "";
   shortCount.textContent = "";
 }
@@ -81,6 +89,16 @@ function renderArticle(text) {
 function renderShort(text) {
   shortEl.className = "copy post";
   shortEl.textContent = text;
+}
+
+function renderComment(text) {
+  if (!text) {
+    commentEl.className = "copy post empty";
+    commentEl.textContent = "No links were supplied, so there is nothing to paste as a comment.";
+    return;
+  }
+  commentEl.className = "copy post";
+  commentEl.textContent = text;
 }
 
 function renderSources(sources) {
@@ -116,7 +134,8 @@ function renderSources(sources) {
 
 function enableOutputs(ready) {
   for (const button of document.querySelectorAll("[data-copy], [data-download]")) {
-    button.disabled = !ready;
+    const key = button.dataset.copy || button.dataset.download;
+    button.disabled = key === "comment" ? !drafts.comment : !ready;
   }
 }
 
@@ -162,6 +181,7 @@ form.addEventListener("submit", async (event) => {
   enableOutputs(false);
   drafts.article = "";
   drafts.short = "";
+  drafts.comment = "";
   showEmpty();
   if (window.LinkedInCards) LinkedInCards.reset();
   live.textContent = "";
@@ -250,6 +270,7 @@ async function readStream(response) {
 function showDraft(event) {
   drafts.article = event.article || "";
   drafts.short = event.short || "";
+  drafts.comment = event.comment || "";
   liveCard.hidden = true;
   if (drafts.article) renderArticle(drafts.article);
   else {
@@ -261,6 +282,7 @@ function showDraft(event) {
     shortEl.className = "copy post empty";
     shortEl.textContent = "The model did not return a short post. The article is still above.";
   }
+  renderComment(drafts.comment);
   articleCount.textContent = drafts.article ? words(drafts.article) : "";
   shortCount.textContent = drafts.short ? words(drafts.short) : "";
   renderSources(event.sources || []);
@@ -288,10 +310,16 @@ function handleEvent(event) {
   }
   if (event.type === "done") {
     if (event.article || event.short) showDraft(event);
-    if (window.LinkedInCards) LinkedInCards.show(event.cards || { slides: [] });
+    if (window.LinkedInCards) {
+      LinkedInCards.show(event.cards || { slides: [] }, {
+        company: document.querySelector("#company").value,
+        topics: document.querySelector("#topics").value,
+      });
+    }
     const ready = event.cards && event.cards.slides && event.cards.slides.length;
+    const comment = drafts.comment ? " Paste the first comment after it is published." : "";
     progress.textContent = ready
-      ? "Ready. Copy the text, then download the cards and attach them on LinkedIn."
+      ? `Ready. Upload the video and paste the caption.${comment}`
       : "Ready to paste into LinkedIn.";
   }
 }
@@ -315,7 +343,7 @@ document.querySelectorAll("[data-download]").forEach((button) => {
     const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = key === "article" ? "linkedin-article.txt" : "linkedin-post.txt";
+    link.download = DOWNLOADS[key] || "linkedin-draft.txt";
     link.click();
     URL.revokeObjectURL(link.href);
   });
