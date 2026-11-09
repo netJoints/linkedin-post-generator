@@ -7,6 +7,9 @@ You give it a company name (optional), one or more topics, optional instructions
 - a longer article
 - a shorter feed post, written as the caption for the video
 - portrait cards for that video, plus a wide cover for the article
+- an animated explainer from the same draft: a headline, nodes that connect, and a bottom line that changes
+
+Choose **Animated video only** to skip the article and the cards. Paste a script, edit the lines the video will show, then download the MP4. That path does not call Ollama.
 
 There is no database. Drafts are not saved on the server. Copy or download them from the page. The cards are drawn in the browser. No image service is called, and no API key is stored.
 
@@ -107,7 +110,7 @@ It lives at `docs/cards/index.html` and is published with the rest of the GitHub
 
 ## Use the form
 
-1. Choose **Mistral Small 3.2** or **Gemma 4 12B**.
+1. Choose **Full draft** or **Animated video only**. Full draft uses **Mistral Small 3.2** or **Gemma 4 12B**. Animated video only uses the script you paste and does not call a model.
 2. Company name is optional. Example: `Cisco`. The model may mention that name in the article or the short post. It does not invent products, announcements, or metrics unless you state them in the instructions or a source says so. The name is not printed on the cards.
 3. Topics are required. Keep them short. Separate them with commas or new lines. Example: `AgenticOps, AI security`. Up to 12 topics. A sentence in this box is treated as the subject, not as a request.
 4. Instructions are optional, up to 1,200 characters. This is one brief for what the post should do, such as announcing an event and inviting people to particular sessions. It is not a chat, and it does not send the model to search the web. A fact you state here can be repeated. A fact you do not state, and that is not in a link or the file, is left out.
@@ -115,7 +118,17 @@ It lives at `docs/cards/index.html` and is published with the rest of the GitHub
 6. A reference file is optional. Choose one `.pdf`, `.doc`, `.docx`, or `.txt` file, up to 8 MB. Its text is read on this laptop and used with the links. The file is not saved. A scanned PDF with no text layer cannot be read.
 7. Click **Write drafts**. The first reply after a cold start is slower because Ollama loads the model into memory. After the text is written, the same model designs the cards. If that reply is unusable, the cards are built from the draft text instead.
 8. Copy or download the article (`linkedin-article.txt`), the short post (`linkedin-post.txt`), and, when you supplied links, the first comment (`linkedin-comment.txt`).
-9. Download the cards. The file name is built from the company and the topics, so two blogs do not overwrite each other. Company `Cisco` and topic `live protect` save as `blog-cisco-live-protect.pdf`, `blog-cisco-live-protect.zip`, `blog-cisco-live-protect-cover.png`, and, when ffmpeg is installed, `blog-cisco-live-protect.mp4`. **Download video** is the file to upload: the same cards, about four seconds each. **Download images** is a zip of PNGs for a multi-image post. **Article cover** is a wide PNG for the long article. **Download PDF** is the file for LinkedIn’s document button.
+9. Download the cards. The file name is built from the company and the topics, so two blogs do not overwrite each other. Company `Cisco` and topic `live protect` save as `blog-cisco-live-protect.pdf`, `blog-cisco-live-protect.zip`, `blog-cisco-live-protect-cover.png`, and, when ffmpeg is installed, `blog-cisco-live-protect.mp4` and `blog-cisco-live-protect-explainer.mp4`. **Download animated video** is the diagram: the headline stays, nodes connect one beat at a time, and the line at the bottom changes. **Download video** holds each card for about four seconds. **Download images** is a zip of PNGs for a multi-image post. **Article cover** is a wide PNG for the long article. **Download PDF** is the file for LinkedIn’s document button. Play explainer previews the diagram before you download it.
+
+## Animated video only
+
+1. Choose **Animated video only**.
+2. Paste a script. The first line is the headline. A shorter line above a longer headline becomes the small label. Each following line becomes a box. A longer line, or a question, also becomes a line at the bottom. A question is kept as the last bottom line.
+3. Click **Plan the video**. The page lists the headline, the boxes, and the bottom lines, and draws the finished diagram. The first box line stays in the center.
+4. Edit any of those lines. Click **Update preview** to redraw. The download stays off until the preview matches the words on the page.
+5. Click **Play** to watch the boxes connect. Click **Download animated video** to save the MP4. The file name comes from the headline, such as `explainer-how-handoffs-break-the-work.mp4`. Playback works without ffmpeg. The file needs ffmpeg.
+
+`POST /api/script` turns the script, or the edited lines, into the explainer. It does not fetch links and does not call Ollama. The script stops at 4,000 characters. The picture is still drawn in the browser, and the MP4 is encoded on this laptop from those frames.
 
 Paste the text into LinkedIn yourself, and upload the file yourself. This app does not log in to LinkedIn and does not publish. Use the short post as the video caption. It has no URLs in it. After the post is published, paste the first comment, which lists the links you supplied. From a personal profile, a video, the image zip, the article, and a text post can be boosted. A PDF document post cannot. A URL in the caption makes LinkedIn attach a link preview, and a link post is the weakest format on the chart in `docs/cards/`.
 
@@ -158,7 +171,9 @@ Paste the text into LinkedIn yourself, and upload the file yourself. This app do
 
 **The short post is missing.** The article is still shown. Run it again. A smaller model is more likely to skip the second section.
 
-**The video button is missing.** ffmpeg is not on the PATH. Install it, reload the page, and write the draft again. The PDF, the images, and the article cover do not need ffmpeg.
+**The video button is missing.** ffmpeg is not on the PATH. Install it, reload the page, and write the draft again. The PDF, the images, and the article cover do not need ffmpeg. Play still previews the explainer.
+
+**Plan the video asks for more lines.** Add a headline of at least three words and at least three more lines for the boxes.
 
 **The cards look plain.** They are type, not a generated photograph. LinkedIn document posts that get read are large words on a steady layout. The first card is the hook. Upload the PDF, and LinkedIn adds the arrows and the page dots.
 
@@ -170,13 +185,17 @@ Paste the text into LinkedIn yourself, and upload the file yourself. This app do
 server.py           local web server and Ollama client
 cards.py            card text from the draft, with a local-model pass in front of it
 media.py            optional MP4 export through ffmpeg
+motion.py           explainer storyboard from the draft or a script
 documents.py        PDF, Word, and text attachment reading
 youtube.py          YouTube transcript reading
 tests/test_links.py link and transcript checks that do not call Ollama
 tests/test_cards.py card text and video-frame checks
+tests/test_motion.py explainer text and frame checks
 static/index.html   the form
 static/app.js       streaming, copy, and download
 static/cards.js     card drawing, PDF, PNG zip, and the video request
+static/motion.js    explainer drawing
+static/script.js    animated video from a pasted script
 static/styles.css
 start.sh            prerequisite checks, then python3 server.py
 requirements.txt    no third-party packages

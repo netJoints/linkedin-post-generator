@@ -12,7 +12,7 @@
       <p class="eyebrow">On this laptop</p>
       <h1>LinkedIn drafts</h1>
     </div>
-    <p class="lede">A long article, a video caption, and swipeable cards, written by Ollama. Nothing is sent to a cloud model.</p>
+      <p class="lede">A long article, a video caption, swipeable cards, and an animated explainer, written on this laptop. You can also paste a script and make only the animated video. Nothing is sent to a cloud model.</p>
     <nav class="key-links" aria-label="Published pages">
       <a href="https://netjoints.github.io/linkedin-post-generator/">Slide deck</a>
       <a href="https://netjoints.github.io/linkedin-post-generator/cards/">Why the cards</a>
@@ -23,6 +23,19 @@
 
   <main>
     <form id="draft-form" class="panel">
+      <fieldset class="mode">
+        <legend>What to make</legend>
+        <label class="choice">
+          <input type="radio" name="mode" value="draft" checked>
+          Full draft
+        </label>
+        <label class="choice">
+          <input type="radio" name="mode" value="video">
+          Animated video only
+        </label>
+      </fieldset>
+
+      <div id="draft-fields">
       <label>
         Model
         <select id="model" name="model" required>
@@ -70,17 +83,68 @@
         <button id="stop" type="button" hidden>Stop</button>
       </div>
       <p id="progress" class="progress" role="status"></p>
+      </div>
+
+      <div id="script-fields" hidden>
+        <label>
+          Script
+          <textarea id="script" name="script" rows="12" maxlength="4000" placeholder="How handoffs break the work&#10;&#10;The model is rarely the part that fails.&#10;A person still owns the decision.&#10;Log every tool call.&#10;Keep the source next to the claim.&#10;&#10;What would you want a human to sign?"></textarea>
+        </label>
+        <p class="hint">Paste the script in your own words. The first line is the headline. A shorter line above a longer headline becomes the small label. Each following line becomes a box. A longer line, or a question, also becomes the line at the bottom. You can edit those words before the video is made.</p>
+        <div class="actions">
+          <button id="plan-video" type="button">Plan the video</button>
+        </div>
+      </div>
     </form>
 
     <section class="results" aria-live="polite">
-      <article class="panel draft-card" id="live-card" hidden>
+      <article class="panel draft-card" id="script-card" hidden>
+        <header class="card-head">
+          <div>
+            <h2>Video plan</h2>
+            <p class="hint">This is the explainer that will be built. The headline stays on screen. The first line is the center box. A later line about an attack, or the last line when there are four or more, sits to the side. The other lines sit above and below. The bottom lines change, in order, as the boxes connect. Edit the words, update the preview, then download the video.</p>
+          </div>
+        </header>
+        <label>
+          Headline
+          <input id="plan-headline" type="text" maxlength="180" autocomplete="off">
+        </label>
+        <label>
+          Small label <span>optional</span>
+          <input id="plan-eyebrow" type="text" maxlength="36" autocomplete="off">
+        </label>
+        <label>
+          Boxes
+          <textarea id="plan-nodes" rows="6" maxlength="800" placeholder="One box per line"></textarea>
+        </label>
+        <p class="hint">One box per line. Three to six lines. At least two words each.</p>
+        <label>
+          Bottom lines
+          <textarea id="plan-captions" rows="4" maxlength="700" placeholder="One line per beat"></textarea>
+        </label>
+        <p class="hint">One line per beat, up to four. These are the words at the bottom of the picture.</p>
+        <div class="actions script-actions">
+          <button id="plan-apply" type="button">Update preview</button>
+          <button id="script-play" type="button" disabled>Play</button>
+          <button id="script-download" type="button" hidden disabled>Download animated video</button>
+        </div>
+        <p id="script-progress" class="progress" role="status">Plan the video to see the diagram.</p>
+        <div class="cards-stage">
+          <p id="script-empty" class="empty">The explainer will land here.</p>
+          <canvas id="script-canvas" hidden aria-hidden="true"></canvas>
+        </div>
+        <p id="script-caption" class="cards-caption"></p>
+        <p id="script-video-note" class="hint" hidden>Video export needs ffmpeg. Install it, reload this page, and the explainer can be saved as an MP4. Play still works without it.</p>
+      </article>
+
+      <article class="panel draft-card draft-only" id="live-card" hidden>
         <header class="card-head">
           <h2>Draft in progress</h2>
         </header>
         <pre id="live" class="copy"></pre>
       </article>
 
-      <article class="panel draft-card">
+      <article class="panel draft-card draft-only">
         <header class="card-head">
           <div>
             <h2>LinkedIn article</h2>
@@ -94,7 +158,7 @@
         <div id="article" class="copy document empty">The article will land here.</div>
       </article>
 
-      <article class="panel draft-card">
+      <article class="panel draft-card draft-only">
         <header class="card-head">
           <div>
             <h2>Short post</h2>
@@ -109,7 +173,7 @@
         <div id="short" class="copy post empty">The shorter feed post will land here.</div>
       </article>
 
-      <article class="panel draft-card" id="comment-card">
+      <article class="panel draft-card draft-only" id="comment-card">
         <header class="card-head">
           <div>
             <h2>First comment</h2>
@@ -123,11 +187,11 @@
         <div id="comment" class="copy post empty">Source links will land here when you supply them.</div>
       </article>
 
-      <article class="panel draft-card" id="cards-card">
+      <article class="panel draft-card draft-only" id="cards-card">
         <header class="card-head">
           <div>
             <h2>Cards</h2>
-            <p class="hint">Download video and upload that file. Paste the short post as the caption, then the first comment after you publish. From a personal profile, a video, the image zip, the article, and a text post can be boosted. A PDF document post cannot. The cover is the wide image for the article. Each blog is saved under its own name, such as blog-cisco-live-protect.mp4, so the next blog does not replace it. A company name is not printed on the cards.</p>
+            <p class="hint">Download animated video for a portrait diagram that builds on screen: the headline stays, nodes connect one beat at a time, and the line at the bottom changes. Download video holds each card still for about four seconds. Paste the short post as the caption, then the first comment after you publish. From a personal profile, a video, the image zip, the article, and a text post can be boosted. A PDF document post cannot. The cover is the wide image for the article. Each blog is saved under its own name, such as blog-cisco-live-protect-explainer.mp4, so the next blog does not replace it. A company name is not printed on the cards.</p>
           </div>
         </header>
         <div class="card-actions cards-downloads">
@@ -135,6 +199,7 @@
           <button type="button" id="cards-images" disabled>Download images</button>
           <button type="button" id="cards-cover" disabled>Article cover</button>
           <button type="button" id="cards-video" hidden disabled>Download video</button>
+          <button type="button" id="cards-motion" hidden disabled>Download animated video</button>
         </div>
         <div class="cards-stage">
           <p id="cards-empty" class="empty">The cards will land here.</p>
@@ -145,16 +210,19 @@
           <button type="button" id="cards-prev">Previous</button>
           <button type="button" id="cards-next">Next</button>
           <div id="cards-dots" class="cards-dots"></div>
+          <button type="button" id="motion-play" hidden disabled>Play explainer</button>
         </div>
-        <p id="cards-video-note" class="hint" hidden>Video export needs ffmpeg. Install it, reload this page, and the same cards can be saved as an MP4. The PDF and the images do not need it.</p>
+        <p id="cards-video-note" class="hint" hidden>Video export needs ffmpeg. Install it, reload this page, and the cards or the explainer can be saved as an MP4. The PDF and the images do not need it.</p>
       </article>
 
-      <section id="sources" class="sources" hidden>
+      <section id="sources" class="sources draft-only" hidden>
         <h2>Sources read</h2>
         <ul id="source-list"></ul>
       </section>
     </section>
   </main>
+  <script src="/motion.js"></script>
+  <script src="/script.js"></script>
   <script src="/cards.js"></script>
   <script src="/app.js"></script>
 </body>

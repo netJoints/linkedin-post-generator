@@ -16,7 +16,8 @@ from pathlib import Path
 
 from cards import design_cards
 from documents import MAX_ATTACHMENT_BYTES, extract_document
-from media import ffmpeg_path, render_mp4
+from media import ffmpeg_path, parse_fps, render_mp4, render_sequence
+from motion import storyboard_from_deck, storyboard_from_plan, storyboard_from_script
 from youtube import fetch_transcript, youtube_video_id
 
 HOST = "127.0.0.1"
@@ -566,7 +567,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/":
             self.serve_file("index.html", "text/html; charset=utf-8")
             return
-        if path in {"/styles.css", "/app.js", "/cards.js"}:
+        if path in {"/styles.css", "/app.js", "/cards.js", "/motion.js", "/script.js"}:
             content_type = "text/css; charset=utf-8" if path.endswith(".css") else "text/javascript; charset=utf-8"
             self.serve_file(path.lstrip("/"), content_type)
             return
@@ -576,6 +577,12 @@ class Handler(BaseHTTPRequestHandler):
         path = urllib.parse.urlparse(self.path).path
         if path == "/api/video":
             self.handle_video()
+            return
+        if path == "/api/motion":
+            self.handle_motion()
+            return
+        if path == "/api/script":
+            self.handle_script()
             return
         if path != "/api/generate":
             self.send_error(404)
@@ -621,6 +628,43 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "video/mp4")
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Content-Disposition", 'attachment; filename="linkedin-cards.mp4"')
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(data)
+
+    def handle_script(self) -> None:
+        length = int(self.headers.get("Content-Length", "0") or "0")
+        if length <= 0 or length > 16_000:
+            self.send_json(413, {"error": "That script is too large."})
+            return
+        body = self.rfile.read(length)
+        try:
+            incoming = json.loads(body.decode("utf-8") or "{}")
+            motion, plan = script_plan(incoming)
+        except ValueError as exc:
+            self.send_json(400, {"error": str(exc)})
+            return
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            self.send_json(400, {"error": "The script was not valid."})
+            return
+        self.send_json(200, {"motion": motion, "plan": plan})
+
+    def handle_motion(self) -> None:
+        length = int(self.headers.get("Content-Length", "0") or "0")
+        if length <= 0 or length > 48_000_000:
+            self.send_json(413, {"error": "That explainer request is too large."})
+            return
+        body = self.rfile.read(length)
+        try:
+            frames, fps = motion_from_multipart(self.headers.get("Content-Type", ""), body)
+            data = render_sequence(frames, fps)
+        except ValueError as exc:
+            self.send_json(400, {"error": str(exc)})
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "video/mp4")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Content-Disposition", 'attachment; filename="linkedin-explainer.mp4"')
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(data)
@@ -735,6 +779,7 @@ class Handler(BaseHTTPRequestHandler):
                 company,
                 lambda system, prompt: ollama_complete(model, system, prompt),
             )
+            motion = storyboard_from_deck(cards, article, short, topics)
             self.write_event(
                 {
                     "type": "done",
@@ -743,6 +788,7 @@ class Handler(BaseHTTPRequestHandler):
                     "comment": comment,
                     "sources": notes,
                     "cards": cards,
+                    "motion": motion,
                 }
             )
         except BrokenPipeError:
@@ -764,6 +810,21 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
         self.wfile.write(b"\r\n")
         self.wfile.flush()
+
+
+def script_plan(incoming: object) -> tuple[dict, dict]:
+    """Turn a script, or the edited lines, into an explainer. No model and no fetches."""
+    if not isinstance(incoming, dict):
+        raise ValueError("The script was not valid.")
+    if "headline" in incoming or "nodes" in incoming:
+        captions = incoming.get("captions")
+        return storyboard_from_plan(
+            str(incoming.get("headline") or ""),
+            str(incoming.get("eyebrow") or ""),
+            incoming.get("nodes"),
+            captions if captions is not None else [],
+        )
+    return storyboard_from_script(str(incoming.get("script") or ""))
 
 
 def read_incoming(
@@ -883,6 +944,34 @@ def disposition_value(header: str, key: str) -> str:
     if match:
         return match.group(1).strip().strip('"')
     return ""
+
+
+def motion_from_multipart(content_type: str, body: bytes) -> tuple[list[bytes], int]:
+    match = re.search(r'boundary="?([^";]+)"?', content_type, re.I)
+    if not match:
+        raise ValueError("The explainer frames were not valid.")
+    boundary = match.group(1).encode("utf-8", errors="strict")
+    if not boundary or len(boundary) > 200:
+        raise ValueError("The explainer frames were not valid.")
+    fps = 10
+    frames: list[tuple[int, bytes]] = []
+    for headers, content in split_multipart(body, boundary):
+        disposition = headers.get("content-disposition", "")
+        name = disposition_value(disposition, "name")
+        filename = disposition_filename(disposition)
+        if filename is None:
+            if name == "fps":
+                fps = parse_fps(content.decode("utf-8", errors="replace").strip())
+            continue
+        order = len(frames)
+        numbered = re.fullmatch(r"frame-(\d+)\.jpe?g", filename, re.I)
+        if numbered:
+            order = int(numbered.group(1))
+        frames.append((order, content))
+        if len(frames) > 160:
+            raise ValueError("The explainer had too many frames. The card video is still available.")
+    frames.sort(key=lambda item: item[0])
+    return [content for _, content in frames], fps
 
 
 def frames_from_multipart(content_type: str, body: bytes) -> list[bytes]:

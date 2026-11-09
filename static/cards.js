@@ -26,6 +26,8 @@
   const imagesButton = document.querySelector("#cards-images");
   const coverButton = document.querySelector("#cards-cover");
   const videoButton = document.querySelector("#cards-video");
+  const motionButton = document.querySelector("#cards-motion");
+  const motionPlay = document.querySelector("#motion-play");
   const videoNote = document.querySelector("#cards-video-note");
   const progress = document.querySelector("#progress");
 
@@ -33,10 +35,13 @@
 
   const preview = canvas.getContext("2d", { alpha: false });
   let deck = { eyebrow: "", footer: "", base: "blog", slides: [] };
+  let storyboard = null;
+  let view = "cards";
   let index = 0;
   let ffmpeg = false;
   let busy = false;
   let token = 0;
+  let playToken = 0;
 
   function pad(value) {
     return String(value).padStart(2, "0");
@@ -448,6 +453,9 @@ async function deflateBytes(bytes) {
       button.type = "button";
       button.setAttribute("aria-label", `Card ${dotIndex + 1}: ${slide.title}`);
       button.addEventListener("click", () => {
+        stopPlayback();
+        view = "cards";
+        showCardChrome(true);
         index = dotIndex;
         paint();
       });
@@ -461,6 +469,8 @@ async function deflateBytes(bytes) {
     imagesButton.disabled = !on;
     coverButton.disabled = !on;
     videoButton.disabled = !on;
+    if (motionButton) motionButton.disabled = !on || !storyboard;
+    if (motionPlay) motionPlay.disabled = busy || !storyboard;
   }
 
   function noteStatus(message) {
@@ -503,6 +513,8 @@ async function deflateBytes(bytes) {
           throw new Error(failure.error || "The video could not be made.");
         }
         saveBlob(await response.blob(), `${deck.base}.mp4`);
+      } else if (kind === "motion") {
+        await exportMotion();
       }
       if (mine === token) noteStatus("Ready. Copy the text, then download the cards and attach them on LinkedIn.");
     } catch (error) {
@@ -513,9 +525,80 @@ async function deflateBytes(bytes) {
     }
   }
 
+  function normalizeMotion(value) {
+    if (!value || !Array.isArray(value.nodes) || value.nodes.length < 3) return null;
+    if (!Array.isArray(value.beats) || !value.beats.length) return null;
+    if (!window.LinkedInMotion) return null;
+    return value;
+  }
+
+  function stopPlayback() {
+    playToken += 1;
+  }
+
+  function showCardChrome(showCards) {
+    prev.hidden = !showCards;
+    next.hidden = !showCards;
+    dots.hidden = !showCards;
+    if (motionPlay) {
+      motionPlay.hidden = !storyboard;
+      motionPlay.textContent = showCards ? "Play explainer" : "Replay";
+      motionPlay.setAttribute("aria-pressed", showCards ? "false" : "true");
+    }
+  }
+
+  function startPlayback() {
+    if (!storyboard || !preview || !window.LinkedInMotion) return;
+    view = "motion";
+    showCardChrome(false);
+    const run = ++playToken;
+    const total = LinkedInMotion.duration(storyboard);
+    const started = performance.now();
+    const frame = (now) => {
+      if (run !== playToken || view !== "motion") return;
+      const time = Math.min((now - started) / 1000, total);
+      LinkedInMotion.draw(preview, storyboard, time);
+      const beat = storyboard.beats[LinkedInMotion.beatAt(storyboard, time)];
+      caption.textContent = beat && beat.caption ? beat.caption : "Animated explainer";
+      if (time < total) requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+  }
+
+  async function exportMotion() {
+    if (!storyboard || !window.LinkedInMotion) return;
+    stopPlayback();
+    const fps = 10;
+    const total = LinkedInMotion.duration(storyboard);
+    const count = Math.round(total * fps);
+    const { board, ctx } = makeCanvas(LinkedInMotion.width, LinkedInMotion.height);
+    const body = new FormData();
+    body.append("fps", String(fps));
+    for (let frame = 0; frame < count; frame += 1) {
+      LinkedInMotion.draw(ctx, storyboard, frame / fps);
+      const blob = await blobOf(board, "image/jpeg", 0.62);
+      body.append("frames", blob, `frame-${String(frame + 1).padStart(3, "0")}.jpg`);
+      if (frame % 8 === 0) noteStatus(`Making the explainer, ${frame + 1} of ${count}`);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    noteStatus("Encoding the explainer");
+    const response = await fetch("/api/motion", { method: "POST", body });
+    if (!response.ok) {
+      const failure = await response.json().catch(() => ({}));
+      throw new Error(failure.error || "The explainer could not be made.");
+    }
+    saveBlob(await response.blob(), `${deck.base}-explainer.mp4`);
+    view = "motion";
+    LinkedInMotion.draw(preview, storyboard, total);
+    showCardChrome(false);
+  }
+
   function reset() {
     token += 1;
+    stopPlayback();
     deck = { eyebrow: "", footer: "", base: "blog", slides: [] };
+    storyboard = null;
+    view = "cards";
     index = 0;
     busy = false;
     canvas.hidden = true;
@@ -524,15 +607,19 @@ async function deflateBytes(bytes) {
     caption.textContent = "";
     nav.hidden = true;
     dots.replaceChildren();
+    showCardChrome(true);
     setDownloads(false);
   }
 
   async function show(incoming, source) {
     const mine = ++token;
+    stopPlayback();
     await document.fonts.ready;
     if (mine !== token) return;
     const slides = Array.isArray(incoming && incoming.slides) ? incoming.slides : [];
     const titled = slides.filter((slide) => slide && slide.title);
+    storyboard = normalizeMotion(source && source.motion);
+    view = "cards";
     deck = {
       eyebrow: String((incoming && incoming.eyebrow) || "").slice(0, 40),
       footer: "",
@@ -546,11 +633,13 @@ async function deflateBytes(bytes) {
     };
     index = 0;
     if (!deck.slides.length) {
+      storyboard = null;
       canvas.hidden = true;
       empty.hidden = false;
       empty.textContent = "The draft did not include enough text to build cards.";
       caption.textContent = "";
       nav.hidden = true;
+      showCardChrome(true);
       setDownloads(false);
       return;
     }
@@ -560,6 +649,7 @@ async function deflateBytes(bytes) {
     canvas.hidden = false;
     nav.hidden = false;
     renderDots();
+    showCardChrome(true);
     paint();
     setDownloads(true);
   }
@@ -567,10 +657,18 @@ async function deflateBytes(bytes) {
   function setFfmpeg(available) {
     ffmpeg = Boolean(available);
     videoButton.hidden = !ffmpeg;
+    if (motionButton) motionButton.hidden = !ffmpeg;
     videoNote.hidden = ffmpeg;
   }
 
   function move(step) {
+    if (view === "motion") {
+      stopPlayback();
+      view = "cards";
+      showCardChrome(true);
+      paint();
+      return;
+    }
     const target = index + step;
     if (target < 0 || target >= deck.slides.length) return;
     index = target;
@@ -583,6 +681,13 @@ async function deflateBytes(bytes) {
   imagesButton.addEventListener("click", () => exportAll("images"));
   coverButton.addEventListener("click", () => exportAll("cover"));
   videoButton.addEventListener("click", () => exportAll("video"));
+  if (motionButton) motionButton.addEventListener("click", () => exportAll("motion"));
+  if (motionPlay) {
+    motionPlay.addEventListener("click", () => {
+      if (!storyboard || busy) return;
+      startPlayback();
+    });
+  }
 
   document.addEventListener("keydown", (event) => {
     if (canvas.hidden) return;

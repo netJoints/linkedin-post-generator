@@ -144,6 +144,7 @@ async function refreshModels() {
     const response = await fetch("/api/health");
     const health = await response.json();
     if (window.LinkedInCards) LinkedInCards.setFfmpeg(Boolean(health.ffmpeg));
+    if (window.LinkedInScript) LinkedInScript.setFfmpeg(Boolean(health.ffmpeg));
     if (!health.ollama) {
       banner.hidden = false;
       banner.textContent = "Ollama is not running. Start it, then reload this page.";
@@ -176,6 +177,10 @@ async function refreshModels() {
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (window.LinkedInScript && LinkedInScript.isVideoMode()) {
+    LinkedInScript.planFromScript();
+    return;
+  }
   controller = new AbortController();
   setBusy(true);
   enableOutputs(false);
@@ -315,12 +320,13 @@ function handleEvent(event) {
       LinkedInCards.show(event.cards || { slides: [] }, {
         company: document.querySelector("#company").value,
         topics: document.querySelector("#topics").value,
+        motion: event.motion,
       });
     }
     const ready = event.cards && event.cards.slides && event.cards.slides.length;
     const comment = drafts.comment ? " Paste the first comment after it is published." : "";
     progress.textContent = ready
-      ? `Ready. Upload the video and paste the caption.${comment}`
+      ? `Ready. Play the explainer, then upload the animated video and paste the caption.${comment}`
       : "Ready to paste into LinkedIn.";
   }
 }
