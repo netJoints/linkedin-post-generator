@@ -56,7 +56,7 @@ def test_fallback_builds_a_deck_from_the_draft() -> None:
     assert kinds[-1] == "close"
     assert deck["slides"][0]["title"] == "Agentic ops fails in the handoff"
     assert deck["slides"][-1]["title"].endswith("?")
-    assert deck["footer"] == "Cisco"
+    assert deck["footer"] == ""
     assert deck["eyebrow"] == "agentic ops"
     assert "#" not in slide_text(deck)
 

@@ -2,11 +2,11 @@
 
 A local writing desk for LinkedIn. It runs on your laptop, calls [Ollama](https://ollama.com) on `127.0.0.1`, and does not send the draft to a cloud model.
 
-You give it a company name (optional), one or more topics, up to five links (optional), and one PDF, Word, or text file (optional). A YouTube link can include its transcript. It writes two plain-text pieces you can paste into LinkedIn, then a set of swipeable cards from that same draft:
+You give it a company name (optional), one or more topics, optional instructions for what the post should do, up to five links (optional), and one PDF, Word, or text file (optional). A YouTube link can include its transcript. It writes two plain-text pieces you can paste into LinkedIn, then a set of swipeable cards from that same draft:
 
 - a longer article
-- a shorter feed post
-- portrait cards for a LinkedIn document post, plus a wide cover for the article
+- a shorter feed post, written as the caption for the video
+- portrait cards for that video, plus a wide cover for the article
 
 There is no database. Drafts are not saved on the server. Copy or download them from the page. The cards are drawn in the browser. No image service is called, and no API key is stored.
 
@@ -108,15 +108,16 @@ It lives at `docs/cards/index.html` and is published with the rest of the GitHub
 ## Use the form
 
 1. Choose **Mistral Small 3.2** or **Gemma 4 12B**.
-2. Company name is optional. Example: `Cisco`. The model may mention that name. It is instructed not to invent products, announcements, or metrics.
-3. Topics are required. Separate them with commas or new lines. Example: `cybersecurity, agentic ops`. Up to 12 topics.
-4. Links are optional, one per line, up to five. A normal web page or blog post is fetched and trimmed to text. A YouTube watch link, a `youtu.be` link, or a shorts link includes the transcript when YouTube provides captions. English is preferred, then any other language. A Vimeo link contributes the video title and author only. A channel or playlist page does not.
-5. A reference file is optional. Choose one `.pdf`, `.doc`, `.docx`, or `.txt` file, up to 8 MB. Its text is read on this laptop and used with the links. The file is not saved. A scanned PDF with no text layer cannot be read.
-6. Click **Write drafts**. The first reply after a cold start is slower because Ollama loads the model into memory. After the text is written, the same model designs the cards. If that reply is unusable, the cards are built from the draft text instead.
-7. Copy or download the article (`linkedin-article.txt`) and the short post (`linkedin-post.txt`).
-8. Download the cards. **Download PDF** is the file you attach with LinkedIn’s document button. **Download images** is a zip of PNGs for a multi-image post. **Article cover** is a wide PNG for the long article. **Download video**, when ffmpeg is installed, is an MP4 of the same cards, about four seconds each, for a separate video post.
+2. Company name is optional. Example: `Cisco`. The model may mention that name in the article or the short post. It does not invent products, announcements, or metrics unless you state them in the instructions or a source says so. The name is not printed on the cards.
+3. Topics are required. Keep them short. Separate them with commas or new lines. Example: `AgenticOps, AI security`. Up to 12 topics. A sentence in this box is treated as the subject, not as a request.
+4. Instructions are optional, up to 1,200 characters. This is one brief for what the post should do, such as announcing an event and inviting people to particular sessions. It is not a chat, and it does not send the model to search the web. A fact you state here can be repeated. A fact you do not state, and that is not in a link or the file, is left out.
+5. Links are optional, one per line, up to five. A normal web page or blog post is fetched and trimmed to text. A YouTube watch link, a `youtu.be` link, or a shorts link includes the transcript when YouTube provides captions. English is preferred, then any other language. A Vimeo link contributes the video title and author only. A channel or playlist page does not.
+6. A reference file is optional. Choose one `.pdf`, `.doc`, `.docx`, or `.txt` file, up to 8 MB. Its text is read on this laptop and used with the links. The file is not saved. A scanned PDF with no text layer cannot be read.
+7. Click **Write drafts**. The first reply after a cold start is slower because Ollama loads the model into memory. After the text is written, the same model designs the cards. If that reply is unusable, the cards are built from the draft text instead.
+8. Copy or download the article (`linkedin-article.txt`), the short post (`linkedin-post.txt`), and, when you supplied links, the first comment (`linkedin-comment.txt`).
+9. Download the cards. The file name is built from the company and the topics, so two blogs do not overwrite each other. Company `Cisco` and topic `live protect` save as `blog-cisco-live-protect.pdf`, `blog-cisco-live-protect.zip`, `blog-cisco-live-protect-cover.png`, and, when ffmpeg is installed, `blog-cisco-live-protect.mp4`. **Download video** is the file to upload: the same cards, about four seconds each. **Download images** is a zip of PNGs for a multi-image post. **Article cover** is a wide PNG for the long article. **Download PDF** is the file for LinkedIn’s document button.
 
-Paste the text into LinkedIn yourself, and upload the file yourself. This app does not log in to LinkedIn and does not publish. Use the short post as the caption. A document and a link preview do not belong on the same post, so attach the PDF or the images, not a link as well. Use the video on its own post if you want a video.
+Paste the text into LinkedIn yourself, and upload the file yourself. This app does not log in to LinkedIn and does not publish. Use the short post as the video caption. It has no URLs in it. After the post is published, paste the first comment, which lists the links you supplied. From a personal profile, a video, the image zip, the article, and a text post can be boosted. A PDF document post cannot. A URL in the caption makes LinkedIn attach a link preview, and a link post is the weakest format on the chart in `docs/cards/`.
 
 ## How a request works
 
@@ -124,7 +125,7 @@ Paste the text into LinkedIn yourself, and upload the file yourself. This app do
 2. Each link is checked before it is opened. Only `http` and `https` are allowed. Links with a username or password are rejected. Loopback, private, link-local, and other non-public addresses are rejected.
 3. Page text is extracted locally and capped so the prompt stays bounded. A YouTube link is handled separately: the app asks YouTube's player endpoint for a caption track and downloads that track. The caption address is opened only when its host is YouTube or Google video. If a file was attached, its text is extracted in memory the same way and added as another source. PDF, Word, and text files are parsed as data. They are not opened in an editor and not saved.
 4. The prompt is sent to Ollama's chat API. Gemma's thinking mode is turned off so the reply is the draft, not a reasoning trace.
-5. The reply is split into the article and the short post and streamed back to the page. Those two pieces are shown while a second, shorter request asks the same local model for the card text. The cards may only restate the draft. A number that was not in the draft drops the model’s cards, and the page builds them from the draft instead. The browser then draws each card at 1080×1350.
+5. The reply is split into the article and the short post and streamed back to the page. URLs are removed from the short post. The links you supplied are listed as a first comment. Those pieces are shown while a second, shorter request asks the same local model for the card text. The cards may only restate the draft. A number that was not in the draft drops the model’s cards, and the page builds them from the draft instead. The browser then draws each card at 1080×1350.
 
 `GET /api/health` reports whether Ollama is up and which of the two models are installed. The page calls that when it loads.
 
@@ -134,8 +135,9 @@ Paste the text into LinkedIn yourself, and upload the file yourself. This app do
 - About 4,000 characters of text are kept from each page.
 - About 8,000 characters of each YouTube transcript are kept. Videos without captions, and Vimeo links, contribute the title only.
 - One attachment, up to 8 MB. About 8,000 characters of its text are kept. Encrypted PDFs, and scans without a text layer, are rejected.
-- Topics and the company field are length-capped.
-- The model can still be vague or wrong. Read the draft before you post it. If you did not supply a source, the model is writing from the topic names only.
+- Topics, the company field, and the instructions are length-capped. Instructions stop at 1,200 characters.
+- The app does not search the web. A line in the instructions that says to check a website does nothing unless that page is in Links.
+- The model can still be vague or wrong. Read the draft before you post it. If you did not supply a source, the model is writing from the topic names and the instructions only.
 - A YouTube video with no captions, or a transcript YouTube refuses to serve, is used as a title only. The draft still runs.
 - Generation time depends on the laptop. Gemma on an Apple Silicon machine with the model already loaded often finishes in under a minute. Mistral Small 3.2 takes longer and uses most of a 24 GB machine while it runs. The cards are a second pass after that, so the page stays on “Designing the cards” for a bit.
 - The deck is 6 to 10 cards: a hook, one idea per card, a short checklist, and the question from the draft. It does not invent a statistic to make a card look busier.

@@ -12,7 +12,11 @@
       <p class="eyebrow">On this laptop</p>
       <h1>LinkedIn drafts</h1>
     </div>
-    <p class="lede">A long article, a short feed post, and swipeable cards, written by Ollama. Nothing is sent to a cloud model.</p>
+    <p class="lede">A long article, a video caption, and swipeable cards, written by Ollama. Nothing is sent to a cloud model.</p>
+    <nav class="key-links" aria-label="Published pages">
+      <a href="https://netjoints.github.io/linkedin-post-generator/">Slide deck</a>
+      <a href="https://netjoints.github.io/linkedin-post-generator/cards/">Why the cards</a>
+    </nav>
   </header>
 
   <p id="status-banner" class="banner" hidden></p>
@@ -34,15 +38,21 @@
 
       <label>
         Topics
-        <textarea id="topics" name="topics" required rows="4" placeholder="cybersecurity, agentic ops"></textarea>
+        <textarea id="topics" name="topics" required rows="3" placeholder="AgenticOps, AI security"></textarea>
       </label>
-      <p class="hint">Separate topics with commas or new lines.</p>
+      <p class="hint">Short subjects, separated by commas or new lines. Up to 12. A sentence here is treated as the subject, not as a request.</p>
+
+      <label>
+        Instructions <span>optional</span>
+        <textarea id="instructions" name="instructions" rows="5" maxlength="1200" placeholder="Cisco Live Melbourne is this week. Announce it and invite people to the AI and AI security sessions. Name the announcement pages from the links. Do not add sessions that are not in those pages."></textarea>
+      </label>
+      <p class="hint">What the post should do. This is one brief, not a chat, and the app does not search the web. Paste the announcement pages in Links. Those pages are read as sources. Their URLs are listed in the first comment, and the article may cite them. The short post stays free of URLs so LinkedIn does not turn it into a link preview.</p>
 
       <label>
         Links <span>optional</span>
         <textarea id="urls" name="urls" rows="4" placeholder="https://example.com/blog/post&#10;https://www.youtube.com/watch?v=..."></textarea>
       </label>
-      <p class="hint">Web pages, blog posts, or video links. One per line, up to five. A YouTube link includes the transcript when YouTube provides one. Vimeo links use the title only.</p>
+      <p class="hint">Web pages, blog posts, or video links. One per line, up to five. They are read as source material and listed in the first comment. They are not pasted into the caption. A YouTube link includes the transcript when YouTube provides one. Vimeo links use the title only.</p>
 
       <div class="file-field">
         <div class="file-label">Reference file <span>optional</span></div>
@@ -88,6 +98,7 @@
         <header class="card-head">
           <div>
             <h2>Short post</h2>
+            <p class="hint">The caption for the video. With no instructions, the first line is the problem and it ends with one specific question, then three hashtags. No links in this text.</p>
             <p id="short-count" class="count"></p>
           </div>
           <div class="card-actions">
@@ -98,11 +109,25 @@
         <div id="short" class="copy post empty">The shorter feed post will land here.</div>
       </article>
 
+      <article class="panel draft-card" id="comment-card">
+        <header class="card-head">
+          <div>
+            <h2>First comment</h2>
+            <p class="hint">Paste this after the post is published. It lists the links you supplied, so the caption can stay a video post. A URL in the caption makes LinkedIn attach a link preview, and a link post is the weakest format this desk tracks.</p>
+          </div>
+          <div class="card-actions">
+            <button type="button" data-copy="comment" disabled>Copy</button>
+            <button type="button" data-download="comment" disabled>Download</button>
+          </div>
+        </header>
+        <div id="comment" class="copy post empty">Source links will land here when you supply them.</div>
+      </article>
+
       <article class="panel draft-card" id="cards-card">
         <header class="card-head">
           <div>
             <h2>Cards</h2>
-            <p class="hint">Upload the PDF with LinkedIn’s document button, or the images as a multi-image post. Paste the short post as the caption. The cover is the wide image for the article. The video is the same cards, for a separate video post.</p>
+            <p class="hint">Download video and upload that file. Paste the short post as the caption, then the first comment after you publish. From a personal profile, a video, the image zip, the article, and a text post can be boosted. A PDF document post cannot. The cover is the wide image for the article. Each blog is saved under its own name, such as blog-cisco-live-protect.mp4, so the next blog does not replace it. A company name is not printed on the cards.</p>
           </div>
         </header>
         <div class="card-actions cards-downloads">

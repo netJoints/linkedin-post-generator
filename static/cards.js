@@ -32,7 +32,7 @@
   if (!canvas) return;
 
   const preview = canvas.getContext("2d", { alpha: false });
-  let deck = { eyebrow: "", footer: "", slides: [] };
+  let deck = { eyebrow: "", footer: "", base: "blog", slides: [] };
   let index = 0;
   let ffmpeg = false;
   let busy = false;
@@ -40,6 +40,31 @@
 
   function pad(value) {
     return String(value).padStart(2, "0");
+  }
+
+  function slugWords(value) {
+    return String(value || "")
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter(Boolean);
+  }
+
+  function blogBase(company, topics, title) {
+    const primary = slugWords(`${company || ""} ${topics || ""}`);
+    const words = primary.length ? primary : slugWords(title);
+    const kept = [];
+    for (const word of words) {
+      if (kept[kept.length - 1] !== word) kept.push(word);
+      if (kept.length === 8) break;
+    }
+    if (!kept.length) {
+      const now = new Date();
+      const p = (n) => String(n).padStart(2, "0");
+      return `blog-${now.getFullYear()}${p(now.getMonth() + 1)}${p(now.getDate())}-${p(now.getHours())}${p(now.getMinutes())}${p(now.getSeconds())}`;
+    }
+    return `blog-${kept.join("-")}`;
   }
 
   function setTracking(ctx, value) {
@@ -138,17 +163,12 @@
     return y + 44;
   }
 
-  function paintFooter(ctx, page, total, dark, footer, width, height) {
+  function paintFooter(ctx, page, total, dark, width, height) {
     const y = height - 112;
     ctx.textBaseline = "top";
     ctx.font = `600 24px ${FONT}`;
     setTracking(ctx, "0px");
     ctx.fillStyle = dark ? "#93a9bd" : "#5c6e80";
-    if (footer) {
-      const fitted = fitText(ctx, footer, width * 0.55, 1, 600, 24, 20);
-      ctx.font = fitted.font;
-      ctx.fillText(fitted.lines[0] || "", Math.round(width * 0.08), y);
-    }
     const label = `${pad(page)}  /  ${pad(total)}`;
     ctx.font = `600 24px ${FONT}`;
     const labelWidth = ctx.measureText(label).width;
@@ -196,7 +216,7 @@
         drawLines(ctx, body, inset, y, PAPER_MUTED, 1.32);
       }
     }
-    paintFooter(ctx, page, total, dark, meta.footer, width, FEED_H);
+    paintFooter(ctx, page, total, dark, width, FEED_H);
   }
 
   function renderCover(ctx, slide, meta) {
@@ -210,12 +230,6 @@
     let y = Math.max(280, Math.round((COVER_H - titleBlock - bodyBlock) / 2));
     y = drawLines(ctx, title, inset, y, INK_TEXT, 1.12);
     if (body.lines.length) drawLines(ctx, body, inset, y + 24, INK_MUTED, 1.3);
-    if (meta.footer) {
-      ctx.font = `600 28px ${FONT}`;
-      ctx.fillStyle = "#93a9bd";
-      ctx.textBaseline = "top";
-      ctx.fillText(meta.footer, inset, COVER_H - 110);
-    }
   }
 
   function makeCanvas(width, height) {
@@ -407,8 +421,8 @@ async function deflateBytes(bytes) {
   }
 
   function fileName(slide, page) {
-    const kind = slide.kind || "card";
-    return `${pad(page)}-${kind}.png`;
+    const kind = String(slide.kind || "card").toLowerCase().replace(/[^a-z]/g, "") || "card";
+    return `${deck.base}-${pad(page)}-${kind}.png`;
   }
 
   function paint() {
@@ -462,7 +476,7 @@ async function deflateBytes(bytes) {
       if (kind === "pdf") {
         noteStatus("Preparing the PDF");
         const boards = deck.slides.map((slide, slideIndex) => feedCanvas(slide, slideIndex + 1, deck.slides.length));
-        saveBlob(await buildPdf(boards), "linkedin-cards.pdf");
+        saveBlob(await buildPdf(boards), `${deck.base}.pdf`);
       } else if (kind === "images") {
         noteStatus("Preparing the images");
         const files = [];
@@ -471,10 +485,10 @@ async function deflateBytes(bytes) {
           const bytes = new Uint8Array(await (await blobOf(board, "image/png")).arrayBuffer());
           files.push({ name: fileName(deck.slides[slideIndex], slideIndex + 1), data: bytes });
         }
-        saveBlob(new Blob([zipStore(files)], { type: "application/zip" }), "linkedin-cards.zip");
+        saveBlob(new Blob([zipStore(files)], { type: "application/zip" }), `${deck.base}.zip`);
       } else if (kind === "cover") {
         noteStatus("Preparing the article cover");
-        saveBlob(await blobOf(coverCanvas(), "image/png"), "linkedin-article-cover.png");
+        saveBlob(await blobOf(coverCanvas(), "image/png"), `${deck.base}-cover.png`);
       } else if (kind === "video") {
         noteStatus("Making the video");
         const body = new FormData();
@@ -488,7 +502,7 @@ async function deflateBytes(bytes) {
           const failure = await response.json().catch(() => ({}));
           throw new Error(failure.error || "The video could not be made.");
         }
-        saveBlob(await response.blob(), "linkedin-cards.mp4");
+        saveBlob(await response.blob(), `${deck.base}.mp4`);
       }
       if (mine === token) noteStatus("Ready. Copy the text, then download the cards and attach them on LinkedIn.");
     } catch (error) {
@@ -501,7 +515,7 @@ async function deflateBytes(bytes) {
 
   function reset() {
     token += 1;
-    deck = { eyebrow: "", footer: "", slides: [] };
+    deck = { eyebrow: "", footer: "", base: "blog", slides: [] };
     index = 0;
     busy = false;
     canvas.hidden = true;
@@ -513,15 +527,17 @@ async function deflateBytes(bytes) {
     setDownloads(false);
   }
 
-  async function show(incoming) {
+  async function show(incoming, source) {
     const mine = ++token;
     await document.fonts.ready;
     if (mine !== token) return;
     const slides = Array.isArray(incoming && incoming.slides) ? incoming.slides : [];
+    const titled = slides.filter((slide) => slide && slide.title);
     deck = {
       eyebrow: String((incoming && incoming.eyebrow) || "").slice(0, 40),
-      footer: String((incoming && incoming.footer) || "").slice(0, 40),
-      slides: slides.filter((slide) => slide && slide.title).slice(0, 10).map((slide) => ({
+      footer: "",
+      base: blogBase(source && source.company, source && source.topics, titled[0] && titled[0].title),
+      slides: titled.slice(0, 10).map((slide) => ({
         kind: slide.kind || "point",
         title: String(slide.title),
         body: String(slide.body || ""),

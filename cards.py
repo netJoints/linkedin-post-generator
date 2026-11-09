@@ -73,7 +73,7 @@ slides is an array of 7 to 9 objects.
 The first object has kind hook. Its title is 6 to 12 words, taken from the short post's first line when that line can stand alone. Its body is an empty string.
 The middle objects have kind point. Each title is under 12 words. Each body is one sentence already supported by the draft, under 22 words, or an empty string.
 One object has kind checklist. Its title is under 6 words. Its items array has 3 to 5 strings, each under 8 words, each taken from a point on the other cards.
-The last object has kind close. Its title is the question already in the draft. Its body is an empty string.
+The last object has kind close. Its title is the draft's closing question, copied as a question, under 18 words. Keep the specific choice in that question. Its body is an empty string.
 Do not invent a statistic, a customer, a quote, or a product capability.
 """
 
@@ -106,7 +106,7 @@ def cards_from_draft(article: str, short: str, topics: list[str], company: str) 
     return {**meta, "slides": slides[:10]}
 
 
-def cards_from_model(raw: str, article: str, short: str, topics: list[str], company: str) -> dict | None:
+def cards_from_model(raw: str, article: str, short: str, topics: list[str], _company: str) -> dict | None:
     try:
         payload = json.loads(_extract_json(raw))
     except (json.JSONDecodeError, ValueError):
@@ -156,7 +156,7 @@ def cards_from_model(raw: str, article: str, short: str, topics: list[str], comp
         return None
     deck = {
         "eyebrow": _eyebrow(str(payload.get("eyebrow", "")), topics),
-        "footer": _footer(company),
+        "footer": "",
         "slides": slides[:10],
     }
     if _banned(deck) or _novel_numbers(deck, source):
@@ -203,15 +203,14 @@ def clean_title(value: str, limit: int, keep_question: bool = False) -> str:
     cleaned = cleaned.strip(" -–—,;:")
     if not keep_question:
         cleaned = cleaned.rstrip(".")
+    elif "?" in str(value) and not cleaned.endswith("?"):
+        cleaned = cleaned.rstrip(".") + "?"
     return cleaned.strip()
 
 
-def _meta(topics: list[str], company: str) -> dict[str, str]:
-    return {"eyebrow": _eyebrow("", topics), "footer": _footer(company)}
-
-
-def _footer(company: str) -> str:
-    return clean_text(company)[:40]
+def _meta(topics: list[str], _company: str) -> dict[str, str]:
+    """A company name can shape the written draft. It is not printed on a card."""
+    return {"eyebrow": _eyebrow("", topics), "footer": ""}
 
 
 def _eyebrow(value: str, topics: list[str]) -> str:
