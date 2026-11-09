@@ -38,9 +38,15 @@
 
       <label>
         Topics
-        <textarea id="topics" name="topics" required rows="4" placeholder="cybersecurity, agentic ops"></textarea>
+        <textarea id="topics" name="topics" required rows="3" placeholder="AgenticOps, AI security"></textarea>
       </label>
-      <p class="hint">Separate topics with commas or new lines.</p>
+      <p class="hint">Short subjects, separated by commas or new lines. Up to 12. A sentence here is treated as the subject, not as a request.</p>
+
+      <label>
+        Instructions <span>optional</span>
+        <textarea id="instructions" name="instructions" rows="5" maxlength="1200" placeholder="Cisco Live Melbourne is this week. Announce it and invite people to the AI and AI security sessions. Name the announcement pages from the links. Do not add sessions that are not in those pages."></textarea>
+      </label>
+      <p class="hint">What the post should do. This is one brief, not a chat, and the app does not search the web. Paste the announcement pages in Links. Those pages are read as sources. Their URLs are listed in the first comment, and the article may cite them. The short post stays free of URLs so LinkedIn does not turn it into a link preview.</p>
 
       <label>
         Links <span>optional</span>
@@ -92,7 +98,7 @@
         <header class="card-head">
           <div>
             <h2>Short post</h2>
-            <p class="hint">The caption for the video. The first line is the problem. It ends with one specific question, then three hashtags. No links in this text.</p>
+            <p class="hint">The caption for the video. With no instructions, the first line is the problem and it ends with one specific question, then three hashtags. No links in this text.</p>
             <p id="short-count" class="count"></p>
           </div>
           <div class="card-actions">

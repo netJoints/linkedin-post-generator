@@ -194,6 +194,7 @@ form.addEventListener("submit", async (event) => {
   body.set("model", modelSelect.value);
   body.set("company", document.querySelector("#company").value);
   body.set("topics", document.querySelector("#topics").value);
+  body.set("instructions", document.querySelector("#instructions").value);
   body.set("urls", document.querySelector("#urls").value);
   if (file) body.set("attachment", file, file.name);
 
