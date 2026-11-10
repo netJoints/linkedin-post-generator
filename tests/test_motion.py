@@ -166,10 +166,26 @@ def test_edited_plan_replaces_the_words() -> None:
     assert board["nodes"][0]["label"] == "Owned decision"
 
 
+PROSE = """Human-only NetOps can no longer keep pace with the complexity and speed of modern digital environments.
+
+Enterprises will not trust critical infrastructure to black-box autonomy.
+
+That is why Cisco AgenticOps is built around a different principle: autonomy must earn trust every time it acts.
+"""
+
+
+def test_three_paragraphs_become_three_boxes() -> None:
+    board, plan = storyboard_from_script(PROSE)
+    assert len(plan["nodes"]) >= 3
+    assert "NetOps" in plan["headline"]
+    assert any("autonomy" in line.lower() for line in plan["captions"])
+    assert tokens(visible_text(board)) <= tokens(PROSE)
+
+
 def test_thin_script_is_refused() -> None:
     with pytest.raises(ValueError, match="headline"):
         storyboard_from_script("Too thin")
-    with pytest.raises(ValueError, match="three more lines"):
+    with pytest.raises(ValueError, match="three boxes"):
         storyboard_from_script("How handoffs break\nOnly two words here")
     with pytest.raises(ValueError, match="not valid"):
         storyboard_from_plan("How handoffs break", "", "Owned decision", [])

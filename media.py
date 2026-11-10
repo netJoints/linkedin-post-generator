@@ -10,6 +10,8 @@ from pathlib import Path
 MAX_FRAMES = 10
 MAX_MOTION_FRAMES = 160
 MAX_FRAME_BYTES = 3_000_000
+MAX_SCENE_VIDEOS = 10
+MAX_SCENE_VIDEO_BYTES = 40_000_000
 JPEG_PREFIX = b"\xff\xd8\xff"
 
 
@@ -54,6 +56,74 @@ def render_sequence(frames: list[bytes], fps: int) -> bytes:
         raise ValueError("The explainer could not be made. The card video is still available.")
     validate_motion_frames(frames)
     return _render(frames, str(fps), "frame", "explainer.mp4", "linkedin-motion-")
+
+
+def join_videos(videos: list[bytes]) -> bytes:
+    """Play the card videos one after another. Names are ours; the request supplies only bytes."""
+    if not videos:
+        raise ValueError("There are no card videos to join.")
+    if len(videos) > MAX_SCENE_VIDEOS:
+        raise ValueError(f"Join {MAX_SCENE_VIDEOS} cards or fewer.")
+    for video in videos:
+        if len(video) < 1000 or len(video) > MAX_SCENE_VIDEO_BYTES or b"ftyp" not in video[:32]:
+            raise ValueError("A card video was not a valid MP4.")
+    if len(videos) == 1:
+        return videos[0]
+    exe = ffmpeg_path()
+    if not exe:
+        raise ValueError("ffmpeg is not installed, so the cards could not be joined.")
+    with tempfile.TemporaryDirectory(prefix="linkedin-join-") as folder:
+        root = Path(folder)
+        names = []
+        for index, video in enumerate(videos, start=1):
+            name = f"scene-{index:02d}.mp4"
+            (root / name).write_bytes(video)
+            names.append(f"file '{name}'")
+        (root / "list.txt").write_text("\n".join(names) + "\n", encoding="utf-8")
+        out = root / "joined.mp4"
+        leading = [exe, "-y", "-hide_banner", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", "list.txt"]
+        copied = [*leading, "-c", "copy", "-movflags", "+faststart", "joined.mp4"]
+        encoded = [
+            *leading,
+            "-f",
+            "lavfi",
+            "-i",
+            "anullsrc=r=48000:cl=stereo",
+            "-map",
+            "0:v:0",
+            "-map",
+            "1:a:0",
+            "-shortest",
+            "-c:v",
+            "libx264",
+            "-crf",
+            "18",
+            "-pix_fmt",
+            "yuv420p",
+            "-r",
+            "30",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "96k",
+            "-movflags",
+            "+faststart",
+            "joined.mp4",
+        ]
+        try:
+            try:
+                _run(copied, 120, root)
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+                out.unlink(missing_ok=True)
+                _run(encoded, 300, root)
+        except subprocess.TimeoutExpired as exc:
+            raise ValueError("Joining the cards took too long.") from exc
+        except subprocess.CalledProcessError as exc:
+            raise ValueError("The cards could not be joined into one video.") from exc
+        data = out.read_bytes() if out.is_file() else b""
+    if len(data) < 1000 or b"ftyp" not in data[:32]:
+        raise ValueError("The cards could not be joined into one video.")
+    return data
 
 
 def _check_jpegs(frames: list[bytes], motion: bool = False) -> None:
@@ -134,5 +204,5 @@ def _render(frames: list[bytes], framerate: str, stem: str, filename: str, prefi
     return data
 
 
-def _run(command: list[str], timeout: int) -> None:
-    subprocess.run(command, check=True, timeout=timeout, capture_output=True)
+def _run(command: list[str], timeout: int, cwd: Path | None = None) -> None:
+    subprocess.run(command, check=True, timeout=timeout, capture_output=True, cwd=cwd)

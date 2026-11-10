@@ -9,7 +9,7 @@ You give it a company name (optional), one or more topics, optional instructions
 - portrait cards for that video, plus a wide cover for the article
 - an animated explainer from the same draft: a headline, nodes that connect, and a bottom line that changes
 
-Choose **Animated video only** to skip the article and the cards. Paste a script, edit the lines the video will show, then download the MP4. That path does not call Ollama.
+Choose **Animated video only** to skip the article and the cards. Write a script for each card, six or more, and the page picks a layout for each one from its words. The cards play in order as one MP4, about 11 seconds per card. That path does not call Ollama.
 
 There is no database. Drafts are not saved on the server. Copy or download them from the page. The cards are drawn in the browser. No image service is called, and no API key is stored.
 
@@ -123,12 +123,20 @@ It lives at `docs/cards/index.html` and is published with the rest of the GitHub
 ## Animated video only
 
 1. Choose **Animated video only**.
-2. Paste a script. The first line is the headline. A shorter line above a longer headline becomes the small label. Each following line becomes a box. A longer line, or a question, also becomes a line at the bottom. A question is kept as the last bottom line.
-3. Click **Plan the video**. The page lists the headline, the boxes, and the bottom lines, and draws the finished diagram. The first box line stays in the center.
-4. Edit any of those lines. Click **Update preview** to redraw. The download stays off until the preview matches the words on the page.
-5. Click **Play** to watch the boxes connect. Click **Download animated video** to save the MP4. The file name comes from the headline, such as `explainer-how-handoffs-break-the-work.mp4`. Playback works without ffmpeg. The file needs ffmpeg.
+2. Write one script per card. The page starts with six cards. **Add a card** goes up to ten. Each card plays for about 11 seconds, so six cards make a video of about 66 seconds. An empty card is skipped.
+3. Leave the layout on **Auto**, or pick one. Auto reads the script:
+   - **Statement**: one sentence, shown large.
+   - **Question**: a question. "The scan, or the change window?" shows both choices.
+   - **Steps**: numbered lines, or lines that start with first, then, finally.
+   - **Checklist**: bullet lines, or lines that start with a verb such as Log, Keep, or Scope.
+   - **Compare**: a problem, then a line that starts with "That is why", "Instead", or "But". `Before: …` and `After: …` lines become two labeled columns.
+   - **Diagram**: three or more short sentences, connected as boxes around a center box.
 
-`POST /api/script` turns the script, or the edited lines, into the explainer. It does not fetch links and does not call Ollama. The script stops at 4,000 characters. The picture is still drawn in the browser, and the MP4 is encoded on this laptop from those frames.
+   A short line at the top of a card, of four words or fewer, is the small label. A first line with no period is the title. A picked layout that does not fit the script falls back to the Auto choice, and the card says so.
+4. Click **Plan the video**. The page lists each card with its layout and its words. Pick a card to see it. A card with too few words is listed with the reason and left out of the video.
+5. Click **Play card** or **Play all**. Click **Download full video** to save one MP4 of every planned card, in order. Each card is drawn and encoded on its own, then the cards are joined. The file name comes from the first card, such as `explainer-autonomy-must-earn-trust-every-time-it-acts.mp4`. Playback works without ffmpeg. The file needs ffmpeg.
+
+`POST /api/scenes` plans the cards. It does not fetch links and does not call Ollama. Each card stops at 1,200 characters. `POST /api/stitch` joins up to ten card MP4s with ffmpeg on this laptop. The joined file keeps the order of the cards. The words on screen come only from each card's script.
 
 Paste the text into LinkedIn yourself, and upload the file yourself. This app does not log in to LinkedIn and does not publish. Use the short post as the video caption. It has no URLs in it. After the post is published, paste the first comment, which lists the links you supplied. From a personal profile, a video, the image zip, the article, and a text post can be boosted. A PDF document post cannot. A URL in the caption makes LinkedIn attach a link preview, and a link post is the weakest format on the chart in `docs/cards/`.
 
@@ -173,7 +181,7 @@ Paste the text into LinkedIn yourself, and upload the file yourself. This app do
 
 **The video button is missing.** ffmpeg is not on the PATH. Install it, reload the page, and write the draft again. The PDF, the images, and the article cover do not need ffmpeg. Play still previews the explainer.
 
-**Plan the video asks for more lines.** Add a headline of at least three words and at least three more lines for the boxes.
+**Plan the video asks for more lines.** The diagram needs a headline of at least three words and three sentences. Add another sentence on its own line.
 
 **The cards look plain.** They are type, not a generated photograph. LinkedIn document posts that get read are large words on a steady layout. The first card is the hook. Upload the PDF, and LinkedIn adds the arrows and the page dots.
 
@@ -185,17 +193,18 @@ Paste the text into LinkedIn yourself, and upload the file yourself. This app do
 server.py           local web server and Ollama client
 cards.py            card text from the draft, with a local-model pass in front of it
 media.py            optional MP4 export through ffmpeg
-motion.py           explainer storyboard from the draft or a script
+motion.py           explainer storyboard from the draft, a script, or one card
 documents.py        PDF, Word, and text attachment reading
 youtube.py          YouTube transcript reading
 tests/test_links.py link and transcript checks that do not call Ollama
 tests/test_cards.py card text and video-frame checks
 tests/test_motion.py explainer text and frame checks
+tests/test_scenes.py card layouts, timing, and joining checks
 static/index.html   the form
 static/app.js       streaming, copy, and download
 static/cards.js     card drawing, PDF, PNG zip, and the video request
 static/motion.js    explainer drawing
-static/script.js    animated video from a pasted script
+static/script.js    animated video from one script per card
 static/styles.css
 start.sh            prerequisite checks, then python3 server.py
 requirements.txt    no third-party packages

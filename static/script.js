@@ -1,19 +1,38 @@
-/* Animated video from a script: plan the words, edit them, then render. */
+/* Animated video from scripts: one card per script, played in order, saved as one video. */
 (function () {
   "use strict";
+
+  const MIN_CARDS = 6;
+  const MAX_CARDS = 10;
+  const LAYOUTS = [
+    ["auto", "Auto"],
+    ["statement", "Statement"],
+    ["question", "Question"],
+    ["steps", "Steps"],
+    ["checklist", "Checklist"],
+    ["compare", "Compare"],
+    ["diagram", "Diagram"],
+  ];
+  const EXAMPLES = [
+    "Human-only NetOps can no longer keep pace with modern networks.\nThat is why autonomy must earn trust every time it acts.",
+    "How an agent closes a ticket\n1. It reads the alert and the topology.\n2. It proposes a fix with the evidence.\n3. A person approves the change.",
+    "Before you ship an agent:\nLog every tool call.\nScope its permissions.\nKeep a human on approvals.",
+    "Before: Tickets wait for a change window.\nAfter: Fixes ship with evidence attached.",
+    "Autonomy must earn trust every time it acts.",
+    "Where would you start: the alerts, or the change window?",
+  ];
 
   const draftFields = document.querySelector("#draft-fields");
   const scriptFields = document.querySelector("#script-fields");
   const scriptCard = document.querySelector("#script-card");
   const topics = document.querySelector("#topics");
-  const scriptInput = document.querySelector("#script");
+  const inputs = document.querySelector("#scene-inputs");
+  const addButton = document.querySelector("#add-scene");
   const planButton = document.querySelector("#plan-video");
-  const headlineInput = document.querySelector("#plan-headline");
-  const eyebrowInput = document.querySelector("#plan-eyebrow");
-  const nodesInput = document.querySelector("#plan-nodes");
-  const captionsInput = document.querySelector("#plan-captions");
-  const applyButton = document.querySelector("#plan-apply");
+  const total = document.querySelector("#scene-total");
+  const list = document.querySelector("#scene-list");
   const playButton = document.querySelector("#script-play");
+  const playAllButton = document.querySelector("#script-play-all");
   const downloadButton = document.querySelector("#script-download");
   const progress = document.querySelector("#script-progress");
   const empty = document.querySelector("#script-empty");
@@ -21,7 +40,8 @@
   const caption = document.querySelector("#script-caption");
   const videoNote = document.querySelector("#script-video-note");
 
-  let board = null;
+  let scenes = [];
+  let selected = 0;
   let snapshot = "";
   let ffmpeg = false;
   let ffmpegKnown = false;
@@ -33,21 +53,29 @@
     return Boolean(picked && picked.value === "video");
   }
 
-  function lines(value) {
-    return String(value || "").split(/\n+/).map((line) => line.trim()).filter(Boolean);
+  function cardFields() {
+    return Array.from(inputs.querySelectorAll(".scene-input")).map((block) => ({
+      script: block.querySelector("textarea"),
+      layout: block.querySelector("select"),
+    }));
+  }
+
+  function payload() {
+    return {
+      scenes: cardFields().map((field) => ({ script: field.script.value, layout: field.layout.value })),
+    };
   }
 
   function signature() {
-    return JSON.stringify({
-      headline: headlineInput.value,
-      eyebrow: eyebrowInput.value,
-      nodes: lines(nodesInput.value),
-      captions: lines(captionsInput.value),
-    });
+    return JSON.stringify(payload());
   }
 
   function dirty() {
     return Boolean(snapshot) && signature() !== snapshot;
+  }
+
+  function ready() {
+    return scenes.filter((scene) => scene.motion);
   }
 
   function note(message) {
@@ -55,14 +83,49 @@
   }
 
   function refreshButtons() {
-    const ready = Boolean(board) && !busy;
-    const edited = dirty();
+    const usable = ready().length > 0 && !busy && !dirty();
     planButton.disabled = busy;
-    applyButton.disabled = busy || !board;
-    playButton.disabled = !ready || edited;
+    addButton.disabled = busy || cardFields().length >= MAX_CARDS;
+    playButton.disabled = !usable || !(scenes[selected] && scenes[selected].motion);
+    playAllButton.disabled = !usable;
     downloadButton.hidden = !ffmpeg;
-    downloadButton.disabled = !ready || edited;
+    downloadButton.disabled = !usable;
     videoNote.hidden = !ffmpegKnown || ffmpeg;
+  }
+
+  function addCard() {
+    const count = cardFields().length;
+    if (count >= MAX_CARDS) return;
+    const number = count + 1;
+    const block = document.createElement("div");
+    block.className = "scene-input";
+    const head = document.createElement("div");
+    head.className = "scene-input-head";
+    const title = document.createElement("span");
+    title.textContent = `Card ${number}`;
+    const select = document.createElement("select");
+    select.setAttribute("aria-label", `Card ${number} layout`);
+    LAYOUTS.forEach(([value, name]) => {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = name;
+      select.append(option);
+    });
+    head.append(title, select);
+    const area = document.createElement("textarea");
+    area.rows = 4;
+    area.maxLength = 1200;
+    area.setAttribute("aria-label", `Card ${number} script`);
+    area.placeholder = EXAMPLES[count % EXAMPLES.length];
+    block.append(head, area);
+    inputs.append(block);
+    [area, select].forEach((field) => {
+      field.addEventListener("input", () => {
+        refreshButtons();
+        if (dirty() && !busy) note("Plan the video again so it uses these words.");
+      });
+    });
+    refreshButtons();
   }
 
   function applyMode() {
@@ -81,22 +144,66 @@
     });
   }
 
-  function fill(plan) {
-    headlineInput.value = plan.headline || "";
-    eyebrowInput.value = plan.eyebrow || "";
-    nodesInput.value = (plan.nodes || []).join("\n");
-    captionsInput.value = (plan.captions || []).join("\n");
-    snapshot = signature();
+  function summary(plan) {
+    return [plan.headline, ...(plan.items || [])].filter(Boolean).join(" · ");
+  }
+
+  function renderList() {
+    list.replaceChildren();
+    scenes.forEach((scene, index) => {
+      const item = document.createElement("li");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.setAttribute("aria-current", index === selected ? "true" : "false");
+      const name = document.createElement("span");
+      name.className = "scene-name";
+      const detail = document.createElement("span");
+      if (scene.motion) {
+        name.textContent = `Card ${scene.card} · ${scene.plan.name} · ${Math.round(scene.plan.seconds)} s`;
+        detail.className = "scene-summary";
+        detail.textContent = summary(scene.plan);
+      } else {
+        name.textContent = `Card ${scene.card} · not used`;
+        detail.className = "scene-error";
+        detail.textContent = scene.error || "This card could not be planned.";
+      }
+      button.append(name, detail);
+      if (scene.plan && scene.plan.note) {
+        const extra = document.createElement("span");
+        extra.className = "scene-note";
+        extra.textContent = scene.plan.note;
+        button.append(extra);
+      }
+      button.addEventListener("click", () => {
+        selected = index;
+        stopPlayback();
+        renderList();
+        showStill();
+        refreshButtons();
+      });
+      item.append(button);
+      list.append(item);
+    });
+    const count = ready().length;
+    const seconds = ready().reduce((sum, scene) => sum + LinkedInMotion.duration(scene.motion), 0);
+    total.textContent = count
+      ? `${count} ${count === 1 ? "card" : "cards"}, about ${Math.round(seconds)} seconds. Pick a card to preview it.`
+      : "No card could be planned yet.";
+  }
+
+  function context() {
+    canvas.width = LinkedInMotion.width;
+    canvas.height = LinkedInMotion.height;
+    return canvas.getContext("2d", { alpha: false });
   }
 
   function showStill() {
-    if (!board || !window.LinkedInMotion || !canvas) return;
-    canvas.width = LinkedInMotion.width;
-    canvas.height = LinkedInMotion.height;
-    const ctx = canvas.getContext("2d", { alpha: false });
+    const scene = scenes[selected];
+    if (!scene || !scene.motion || !window.LinkedInMotion || !canvas) return;
+    const ctx = context();
     if (!ctx) return;
-    const total = LinkedInMotion.duration(board);
-    LinkedInMotion.draw(ctx, board, Math.max(0, total - 0.05));
+    const board = scene.motion;
+    LinkedInMotion.draw(ctx, board, Math.max(0, LinkedInMotion.duration(board) - 0.45));
     canvas.hidden = false;
     empty.hidden = true;
     const beats = board.beats || [];
@@ -107,82 +214,80 @@
     playToken += 1;
   }
 
-  function play() {
-    if (!board || !window.LinkedInMotion || busy || dirty()) return;
+  function playScenes(order) {
+    if (!order.length || !window.LinkedInMotion || busy || dirty()) return;
     stopPlayback();
     const run = playToken;
-    const total = LinkedInMotion.duration(board);
-    const started = performance.now();
-    const ctx = canvas.getContext("2d", { alpha: false });
+    const ctx = context();
+    if (!ctx) return;
+    let step = 0;
+    let started = performance.now();
     const frame = (now) => {
       if (run !== playToken) return;
-      const time = Math.min((now - started) / 1000, total);
-      LinkedInMotion.draw(ctx, board, time);
-      const beat = board.beats[LinkedInMotion.beatAt(board, time)];
+      const board = order[step].motion;
+      const length = LinkedInMotion.duration(board);
+      let time = (now - started) / 1000;
+      if (time >= length && step < order.length - 1) {
+        step += 1;
+        started = now;
+        time = 0;
+      }
+      const current = order[step].motion;
+      time = Math.min(time, LinkedInMotion.duration(current));
+      LinkedInMotion.draw(ctx, current, time);
+      const beat = (current.beats || [])[LinkedInMotion.beatAt(current, time)];
       caption.textContent = beat && beat.caption ? beat.caption : "";
-      if (time < total) requestAnimationFrame(frame);
+      if (step < order.length - 1 || time < LinkedInMotion.duration(current)) requestAnimationFrame(frame);
     };
     canvas.hidden = false;
     empty.hidden = true;
     requestAnimationFrame(frame);
   }
 
-  async function requestPlan(payload) {
-    const response = await fetch("/api/script", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || "The video plan could not be built.");
-    if (!data.motion || !data.plan) throw new Error("The video plan could not be built.");
-    return data;
-  }
-
-  async function showPlan(payload, pending) {
-    if (busy) return false;
+  async function planFromScript() {
+    if (busy) return;
+    const body = payload();
+    if (!body.scenes.some((scene) => scene.script.trim())) {
+      note("Write a script in at least one card.");
+      const first = cardFields()[0];
+      if (first) first.script.focus();
+      return;
+    }
     busy = true;
     stopPlayback();
     refreshButtons();
-    note(pending);
+    note("Planning the cards");
     try {
       await document.fonts.ready;
-      const data = await requestPlan(payload);
-      board = data.motion;
-      fill(data.plan);
+      const response = await fetch("/api/scenes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "The video plan could not be built.");
+      if (!Array.isArray(data.scenes)) throw new Error("The video plan could not be built.");
+      scenes = data.scenes;
+      snapshot = JSON.stringify(body);
+      const first = scenes.findIndex((scene) => scene.motion);
+      selected = first < 0 ? 0 : first;
+      renderList();
       showStill();
-      note("This is the explainer. Edit any line, update the preview, then download the video.");
-      return true;
+      const failed = scenes.length - ready().length;
+      note(failed
+        ? `${failed} ${failed === 1 ? "card needs" : "cards need"} more words and will be left out. Fix them or download without them.`
+        : "Play the cards, then download the full video.");
     } catch (error) {
       note(error.message || "The video plan could not be built.");
-      return false;
     } finally {
       busy = false;
       refreshButtons();
     }
   }
 
-  function planFromScript() {
-    const script = scriptInput.value.trim();
-    if (!script) {
-      note("Paste a script first.");
-      scriptInput.focus();
-      return;
-    }
-    showPlan({ script }, "Planning the video");
-  }
-
-  function currentPlan() {
-    return {
-      headline: headlineInput.value,
-      eyebrow: eyebrowInput.value,
-      nodes: lines(nodesInput.value),
-      captions: lines(captionsInput.value),
-    };
-  }
-
   function fileName() {
-    const slug = String((board && board.headline) || "")
+    const first = ready()[0];
+    const slug = String((first && (first.motion.headline || first.plan.items[0])) || "")
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "")
@@ -207,38 +312,58 @@
     setTimeout(() => URL.revokeObjectURL(link.href), 1500);
   }
 
+  async function failure(response, fallback) {
+    const data = await response.json().catch(() => ({}));
+    return new Error(data.error || fallback);
+  }
+
+  async function renderScene(ctx, target, board, label) {
+    const fps = 10;
+    const count = Math.max(1, Math.round(LinkedInMotion.duration(board) * fps));
+    const body = new FormData();
+    body.append("fps", String(fps));
+    for (let frame = 0; frame < count; frame += 1) {
+      LinkedInMotion.draw(ctx, board, frame / fps);
+      body.append("frames", await blobOf(target), `frame-${String(frame + 1).padStart(3, "0")}.jpg`);
+      if (frame % 10 === 0) note(`${label}, frame ${frame + 1} of ${count}`);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    note(`${label}, encoding`);
+    const response = await fetch("/api/motion", { method: "POST", body });
+    if (!response.ok) throw await failure(response, "A card could not be made.");
+    return response.blob();
+  }
+
   async function download() {
-    if (busy || !board || dirty() || !window.LinkedInMotion) return;
+    const order = ready();
+    if (busy || !order.length || dirty() || !window.LinkedInMotion) return;
     stopPlayback();
     busy = true;
     refreshButtons();
     try {
-      const fps = 10;
-      const total = LinkedInMotion.duration(board);
-      const count = Math.max(1, Math.round(total * fps));
-      const exportCanvas = document.createElement("canvas");
-      exportCanvas.width = LinkedInMotion.width;
-      exportCanvas.height = LinkedInMotion.height;
-      const ctx = exportCanvas.getContext("2d", { alpha: false });
+      const target = document.createElement("canvas");
+      target.width = LinkedInMotion.width;
+      target.height = LinkedInMotion.height;
+      const ctx = target.getContext("2d", { alpha: false });
       if (!ctx) throw new Error("This browser could not draw the explainer.");
-      const body = new FormData();
-      body.append("fps", String(fps));
-      for (let frame = 0; frame < count; frame += 1) {
-        LinkedInMotion.draw(ctx, board, frame / fps);
-        const blob = await blobOf(exportCanvas);
-        body.append("frames", blob, `frame-${String(frame + 1).padStart(3, "0")}.jpg`);
-        if (frame % 8 === 0) note(`Making the explainer, ${frame + 1} of ${count}`);
-        await new Promise((resolve) => setTimeout(resolve, 0));
+      const videos = [];
+      for (let index = 0; index < order.length; index += 1) {
+        videos.push(await renderScene(ctx, target, order[index].motion, `Card ${index + 1} of ${order.length}`));
       }
-      note("Encoding the explainer");
-      const response = await fetch("/api/motion", { method: "POST", body });
-      if (!response.ok) {
-        const failure = await response.json().catch(() => ({}));
-        throw new Error(failure.error || "The explainer could not be made.");
+      let video = videos[0];
+      if (videos.length > 1) {
+        note("Joining the cards into one video");
+        const body = new FormData();
+        videos.forEach((blob, index) => {
+          body.append("videos", blob, `scene-${String(index + 1).padStart(2, "0")}.mp4`);
+        });
+        const response = await fetch("/api/stitch", { method: "POST", body });
+        if (!response.ok) throw await failure(response, "The cards could not be joined.");
+        video = await response.blob();
       }
-      saveBlob(await response.blob(), fileName());
+      saveBlob(video, fileName());
       showStill();
-      note("Saved the animated video.");
+      note(`Saved the full video: ${order.length} ${order.length === 1 ? "card" : "cards"}.`);
     } catch (error) {
       note(error.message || "The explainer could not be made.");
     } finally {
@@ -250,16 +375,14 @@
   document.querySelectorAll('input[name="mode"]').forEach((input) => {
     input.addEventListener("change", applyMode);
   });
+  addButton.addEventListener("click", addCard);
   planButton.addEventListener("click", planFromScript);
-  applyButton.addEventListener("click", () => showPlan(currentPlan(), "Updating the preview"));
-  playButton.addEventListener("click", play);
-  downloadButton.addEventListener("click", download);
-  [headlineInput, eyebrowInput, nodesInput, captionsInput].forEach((field) => {
-    field.addEventListener("input", () => {
-      refreshButtons();
-      if (dirty() && !busy) note("Update the preview so the video uses these words.");
-    });
+  playButton.addEventListener("click", () => {
+    const scene = scenes[selected];
+    if (scene && scene.motion) playScenes([scene]);
   });
+  playAllButton.addEventListener("click", () => playScenes(ready()));
+  downloadButton.addEventListener("click", download);
 
   function setFfmpeg(available) {
     ffmpeg = Boolean(available);
@@ -267,6 +390,7 @@
     refreshButtons();
   }
 
+  for (let index = 0; index < MIN_CARDS; index += 1) addCard();
   applyMode();
   refreshButtons();
   window.LinkedInScript = { planFromScript, setFfmpeg, isVideoMode };

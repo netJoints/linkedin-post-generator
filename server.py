@@ -16,8 +16,14 @@ from pathlib import Path
 
 from cards import design_cards
 from documents import MAX_ATTACHMENT_BYTES, extract_document
-from media import ffmpeg_path, parse_fps, render_mp4, render_sequence
-from motion import storyboard_from_deck, storyboard_from_plan, storyboard_from_script
+from media import ffmpeg_path, join_videos, parse_fps, render_mp4, render_sequence
+from motion import (
+    MAX_SCENES,
+    scenes_from_payload,
+    storyboard_from_deck,
+    storyboard_from_plan,
+    storyboard_from_script,
+)
 from youtube import fetch_transcript, youtube_video_id
 
 HOST = "127.0.0.1"
@@ -30,6 +36,8 @@ MAX_BYTES = 500_000
 FETCH_TIMEOUT = 12
 TEXT_LIMIT = 4_000
 MAX_REQUEST_BYTES = MAX_ATTACHMENT_BYTES + 100_000
+MAX_SCENE_VIDEO_BYTES = 40_000_000
+MAX_STITCH_BYTES = 160_000_000
 
 MODELS = (
     {
@@ -584,6 +592,12 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/script":
             self.handle_script()
             return
+        if path == "/api/scenes":
+            self.handle_scenes()
+            return
+        if path == "/api/stitch":
+            self.handle_stitch()
+            return
         if path != "/api/generate":
             self.send_error(404)
             return
@@ -648,6 +662,43 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(400, {"error": "The script was not valid."})
             return
         self.send_json(200, {"motion": motion, "plan": plan})
+
+    def handle_scenes(self) -> None:
+        length = int(self.headers.get("Content-Length", "0") or "0")
+        if length <= 0 or length > 40_000:
+            self.send_json(413, {"error": "Those scripts are too large."})
+            return
+        body = self.rfile.read(length)
+        try:
+            incoming = json.loads(body.decode("utf-8") or "{}")
+            scenes = scenes_from_payload(incoming)
+        except ValueError as exc:
+            self.send_json(400, {"error": str(exc)})
+            return
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            self.send_json(400, {"error": "The cards were not valid."})
+            return
+        self.send_json(200, {"scenes": scenes})
+
+    def handle_stitch(self) -> None:
+        length = int(self.headers.get("Content-Length", "0") or "0")
+        if length <= 0 or length > MAX_STITCH_BYTES:
+            self.send_json(413, {"error": "Those videos are too large to join."})
+            return
+        body = self.rfile.read(length)
+        try:
+            videos = videos_from_multipart(self.headers.get("Content-Type", ""), body)
+            data = join_videos(videos)
+        except ValueError as exc:
+            self.send_json(400, {"error": str(exc)})
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "video/mp4")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Content-Disposition", 'attachment; filename="linkedin-explainer.mp4"')
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(data)
 
     def handle_motion(self) -> None:
         length = int(self.headers.get("Content-Length", "0") or "0")
@@ -972,6 +1023,30 @@ def motion_from_multipart(content_type: str, body: bytes) -> tuple[list[bytes], 
             raise ValueError("The explainer had too many frames. The card video is still available.")
     frames.sort(key=lambda item: item[0])
     return [content for _, content in frames], fps
+
+
+def videos_from_multipart(content_type: str, body: bytes) -> list[bytes]:
+    match = re.search(r'boundary="?([^";]+)"?', content_type, re.I)
+    if not match:
+        raise ValueError("The card videos were not valid.")
+    boundary = match.group(1).encode("utf-8", errors="strict")
+    if not boundary or len(boundary) > 200:
+        raise ValueError("The card videos were not valid.")
+    videos: list[tuple[int, bytes]] = []
+    for headers, content in split_multipart(body, boundary):
+        filename = disposition_filename(headers.get("content-disposition", ""))
+        if filename is None:
+            continue
+        if len(content) > MAX_SCENE_VIDEO_BYTES:
+            raise ValueError("One card video is too large.")
+        numbered = re.fullmatch(r"scene-(\d+)\.mp4", filename, re.I)
+        videos.append((int(numbered.group(1)) if numbered else len(videos), content))
+        if len(videos) > MAX_SCENES:
+            raise ValueError(f"Join {MAX_SCENES} cards or fewer.")
+    if not videos:
+        raise ValueError("There are no card videos to join.")
+    videos.sort(key=lambda item: item[0])
+    return [content for _, content in videos]
 
 
 def frames_from_multipart(content_type: str, body: bytes) -> list[bytes]:

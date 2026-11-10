@@ -217,20 +217,70 @@ button {
 
 button:disabled { cursor: not-allowed; opacity: 0.45; }
 
-#generate, #plan-video, #plan-apply, .card-actions button[data-copy], #cards-pdf {
+#generate, #plan-video, .card-actions button[data-copy], #cards-pdf {
   background: var(--accent);
   color: white;
 }
 
-#generate:hover:not(:disabled), #plan-video:hover:not(:disabled), #plan-apply:hover:not(:disabled), #cards-pdf:hover:not(:disabled) { background: var(--accent-dark); }
+#generate:hover:not(:disabled), #plan-video:hover:not(:disabled), #cards-pdf:hover:not(:disabled) { background: var(--accent-dark); }
 
 #stop, .card-actions button[data-download],
 #cards-images, #cards-cover, #cards-video, #cards-motion,
-#script-play, #script-download, .cards-nav button {
+#script-play, #script-play-all, #script-download, #add-scene, .cards-nav button {
   background: transparent;
   color: var(--ink);
   border: 1px solid var(--line);
 }
+
+.scene-inputs { display: grid; gap: 12px; margin-top: 14px; }
+
+.scene-input {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px 12px;
+}
+
+.scene-input-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.92rem;
+  font-weight: 650;
+}
+
+.scene-input-head select { width: auto; padding: 6px 10px; }
+
+.scene-input textarea { margin-top: 8px; }
+
+.layout-guide { margin: 6px 0 0; padding-left: 18px; }
+
+.layout-guide li { margin-top: 3px; }
+
+.scene-list { display: grid; gap: 8px; margin: 0 0 4px; padding: 0; list-style: none; }
+
+.scene-list button {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  font: 500 0.88rem/1.35 var(--sans);
+}
+
+.scene-list button[aria-current="true"] { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+
+.scene-list .scene-name { font-weight: 700; }
+
+.scene-list .scene-summary { color: var(--muted); }
+
+.scene-list .scene-note { color: var(--accent-dark); }
+
+.scene-list .scene-error { color: #a8321f; }
 
 .results { display: grid; gap: 16px; }
 

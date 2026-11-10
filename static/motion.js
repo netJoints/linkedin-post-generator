@@ -165,7 +165,61 @@
     };
   }
 
+  function hasCaptions(board) {
+    return (board.beats || []).some((beat) => String(beat.caption || "").trim());
+  }
+
+  function bottomLimit(board) {
+    return hasCaptions(board) ? 1120 : 1250;
+  }
+
   function layout(board, diagramTop) {
+    if (board.layout === "steps" || board.layout === "checklist") return stackLayout(board, diagramTop);
+    if (board.layout === "compare") return compareLayout(board, diagramTop);
+    return hubLayout(board, diagramTop);
+  }
+
+  function stackLayout(board, top) {
+    const nodes = board.nodes || [];
+    const boxes = {};
+    if (!nodes.length) return boxes;
+    const gap = 22;
+    const room = bottomLimit(board) - top - 24;
+    const h = Math.max(84, Math.min(176, (room - gap * (nodes.length - 1)) / nodes.length));
+    const total = nodes.length * h + (nodes.length - 1) * gap;
+    let y = top + 12 + Math.max(0, (room - total) / 2);
+    nodes.forEach((node) => {
+      boxes[node.id] = { node, x: 72, y, w: W - 144, h };
+      y += h + gap;
+    });
+    return boxes;
+  }
+
+  function compareLayout(board, top) {
+    const nodes = board.nodes || [];
+    const boxes = {};
+    const columns = board.columns || [];
+    const headed = columns.some((name) => String(name || "").trim());
+    const colW = 440;
+    const xs = { left: 72, right: W - 72 - colW };
+    const start = top + (headed ? 76 : 20);
+    const room = bottomLimit(board) - start - 12;
+    ["left", "right"].forEach((side) => {
+      const items = nodes.filter((node) => node.place === side);
+      if (!items.length) return;
+      const gap = 24;
+      const h = Math.max(120, Math.min(340, (room - gap * (items.length - 1)) / items.length));
+      const total = items.length * h + (items.length - 1) * gap;
+      let y = start + Math.max(0, (room - total) / 2);
+      items.forEach((node) => {
+        boxes[node.id] = { node, x: xs[side], y, w: colW, h };
+        y += h + gap;
+      });
+    });
+    return boxes;
+  }
+
+  function hubLayout(board, diagramTop) {
     const nodes = board.nodes || [];
     const tops = nodes.filter((node) => node.place === "top");
     const bottoms = nodes.filter((node) => node.place === "bottom");
@@ -397,19 +451,269 @@
     drawLine(current, previous && previous !== current ? fade : Math.max(fade, index === 0 ? fade : 1));
   }
 
+  const PANEL = {
+    neutral: { fill: "#0e2234", stroke: "#3f7598", text: "#e8f2f8", badge: "#5ec4ef" },
+    muted: { fill: "#161d26", stroke: "#4a5866", text: "#b9c6d0", badge: "#8a97a3" },
+    good: { fill: "#0f2c3a", stroke: "#5ec4ef", text: "#f4f8fb", badge: "#7fe0b0" },
+  };
+
+  function drawBadge(ctx, kind, label, x, y, color) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = color;
+    ctx.fillStyle = "rgba(255, 255, 255, 0.04)";
+    ctx.beginPath();
+    ctx.arc(0, 0, 24, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    if (kind === "number") {
+      ctx.fillStyle = color;
+      ctx.font = `700 24px ${FONT}`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(String(label), 0, 1);
+    } else if (kind === "check") {
+      ctx.moveTo(-10, 1);
+      ctx.lineTo(-3, 8);
+      ctx.lineTo(11, -7);
+      ctx.stroke();
+    } else if (kind === "cross") {
+      ctx.moveTo(-8, -8);
+      ctx.lineTo(8, 8);
+      ctx.moveTo(8, -8);
+      ctx.lineTo(-8, 8);
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = color;
+      ctx.arc(0, 0, 7, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function fitBox(ctx, text, width, height) {
+    for (let size = 44; size >= 20; size -= 2) {
+      const lines = Math.max(1, Math.floor(height / (size * 1.22)));
+      const fitted = fit(ctx, text, width, lines, 600, size, size);
+      if (fitted.lines.join(" ") === String(text || "").split(/\s+/).filter(Boolean).join(" ")) return fitted;
+    }
+    return fit(ctx, text, width, Math.max(1, Math.floor(height / 24)), 600, 20, 20);
+  }
+
+  function drawPanel(ctx, box, progress) {
+    if (progress <= 0.01) return;
+    const node = box.node;
+    const palette = PANEL[node.tone] || PANEL.neutral;
+    let kind = "dot";
+    if (node.place === "step") kind = "number";
+    else if (node.place === "check" || node.place === "right") kind = "check";
+    else if (node.place === "left") kind = "cross";
+    const slide = node.place === "right" ? 40 : -40;
+    ctx.save();
+    ctx.globalAlpha = progress;
+    ctx.translate(box.x + slide * (1 - progress), box.y);
+    ctx.shadowColor = "rgba(0, 0, 0, 0.35)";
+    ctx.shadowBlur = 18;
+    ctx.shadowOffsetY = 8;
+    roundRect(ctx, 0, 0, box.w, box.h, 20);
+    ctx.fillStyle = palette.fill;
+    ctx.fill();
+    ctx.shadowColor = "transparent";
+    ctx.shadowBlur = 0;
+    ctx.lineWidth = node.tone === "good" ? 2.5 : 1.5;
+    ctx.strokeStyle = palette.stroke;
+    ctx.stroke();
+    drawBadge(ctx, kind, node.order || "", 52, box.h / 2, palette.badge);
+    const textX = 96;
+    const fitted = fitBox(ctx, node.label, box.w - textX - 28, box.h - 28);
+    ctx.font = `600 ${fitted.size}px ${FONT}`;
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = palette.text;
+    const lineHeight = Math.round(fitted.size * 1.22);
+    let textY = box.h / 2 - ((fitted.lines.length - 1) * lineHeight) / 2;
+    for (const line of fitted.lines) {
+      ctx.fillText(line, textX, textY);
+      textY += lineHeight;
+    }
+    ctx.restore();
+  }
+
+  function drawColumns(ctx, board, boxes, top, time) {
+    const columns = board.columns || [];
+    const placed = Object.keys(boxes).map((id) => boxes[id]);
+    const sideProgress = (side) => Math.max(0, ...placed
+      .filter((box) => box.node.place === side)
+      .map((box) => nodeProgress(board, box.node, time)));
+    const left = sideProgress("left");
+    const right = sideProgress("right");
+    ctx.save();
+    ctx.textBaseline = "top";
+    ctx.font = `700 26px ${FONT}`;
+    if ("letterSpacing" in ctx) ctx.letterSpacing = "3px";
+    [["left", 72, left, "#8a97a3"], ["right", W - 72 - 440, right, "#7fe0b0"]].forEach(([side, x, progress, color], index) => {
+      const name = String(columns[index] || "").toUpperCase();
+      if (!name || progress <= 0.01) return;
+      ctx.globalAlpha = progress;
+      ctx.fillStyle = color;
+      ctx.fillText(name, x + 4, top + 24);
+      ctx.fillRect(x + 4, top + 62, 40, 3);
+    });
+    if ("letterSpacing" in ctx) ctx.letterSpacing = "0px";
+    const ys = placed.map((box) => box.y + box.h / 2);
+    if (right > 0.01 && ys.length) {
+      const y = (Math.min(...ys) + Math.max(...ys)) / 2;
+      ctx.globalAlpha = right;
+      ctx.strokeStyle = "#5ec4ef";
+      ctx.lineWidth = 4;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(526 - 12 * (1 - right), y - 16);
+      ctx.lineTo(546, y);
+      ctx.lineTo(526 - 12 * (1 - right), y + 16);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawFocus(ctx, board, time) {
+    const inset = 72;
+    const emphasis = new Set((board.emphasis || []).map(bare));
+    const question = board.layout === "question";
+    const options = (board.nodes || []).filter((node) => node.place === "option");
+    ctx.textBaseline = "top";
+    const eyebrow = String(board.eyebrow || "").toUpperCase();
+    if (eyebrow) {
+      ctx.font = `600 22px ${FONT}`;
+      if ("letterSpacing" in ctx) ctx.letterSpacing = "3.5px";
+      ctx.fillStyle = "#8ec8e6";
+      ctx.fillText(eyebrow, inset, 96);
+      if ("letterSpacing" in ctx) ctx.letterSpacing = "0px";
+    }
+    const words = String(board.headline || "").split(/\s+/).filter(Boolean);
+    const fitted = fit(ctx, board.headline, W - inset * 2, 6, 700, 88, 52);
+    const lineHeight = Math.round(fitted.size * 1.14);
+    const optionRoom = options.length ? 150 : 0;
+    const area = bottomLimit(board) - 180;
+    const block = fitted.lines.length * lineHeight + optionRoom;
+    let y = 180 + Math.max(0, (area - block) / 2);
+    if (question) {
+      ctx.save();
+      ctx.globalAlpha = 0.1 * ease(time / 0.6);
+      ctx.fillStyle = "#5ec4ef";
+      ctx.font = `800 520px ${FONT}`;
+      ctx.textAlign = "right";
+      ctx.fillText("?", W - 30, y - 140);
+      ctx.restore();
+    }
+    ctx.fillStyle = "#5ec4ef";
+    ctx.fillRect(inset, y - 44, 96 * ease(time / 0.5), 6);
+    ctx.font = `700 ${fitted.size}px ${FONT}`;
+    let cursor = 0;
+    for (const line of fitted.lines) {
+      let x = inset;
+      for (const part of line.split(/\s+/).filter(Boolean)) {
+        const word = words[cursor] || part;
+        const appear = ease((time - 0.15 - cursor * 0.09) / 0.35);
+        cursor += 1;
+        ctx.globalAlpha = appear;
+        ctx.fillStyle = emphasis.has(bare(word)) ? "#9adfff" : "#f4f8fb";
+        ctx.fillText(word, x, y + 14 * (1 - appear));
+        x += ctx.measureText(`${word} `).width;
+      }
+      y += lineHeight;
+    }
+    ctx.globalAlpha = 1;
+    if (!options.length) return;
+    y += 48;
+    ctx.font = `600 32px ${FONT}`;
+    let x = inset;
+    options.forEach((node) => {
+      const progress = nodeProgress(board, node, time);
+      const label = String(node.label || "");
+      const width = Math.min(W - inset * 2, ctx.measureText(label).width + 72);
+      if (x + width > W - inset) {
+        x = inset;
+        y += 100;
+      }
+      if (progress > 0.01) {
+        ctx.save();
+        ctx.globalAlpha = progress;
+        ctx.translate(0, 16 * (1 - progress));
+        roundRect(ctx, x, y, width, 80, 40);
+        ctx.fillStyle = "#0f2c3a";
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "#5ec4ef";
+        ctx.stroke();
+        ctx.fillStyle = "#f4f8fb";
+        ctx.textBaseline = "middle";
+        ctx.fillText(label, x + 36, y + 41);
+        ctx.restore();
+      }
+      x += width + 24;
+    });
+  }
+
+  function drawProgress(ctx, board) {
+    const count = Number(board.count) || 1;
+    if (count < 2) return;
+    const position = Math.max(1, Math.min(count, Number(board.position) || 1));
+    const gap = 14;
+    const dot = 10;
+    const wide = 34;
+    const total = (count - 1) * (dot + gap) + wide;
+    let x = W / 2 - total / 2;
+    ctx.save();
+    for (let index = 1; index <= count; index += 1) {
+      const current = index === position;
+      ctx.fillStyle = current ? "#5ec4ef" : index < position ? "rgba(94, 196, 239, 0.45)" : "rgba(150, 190, 214, 0.22)";
+      roundRect(ctx, x, 1306, current ? wide : dot, dot, dot / 2);
+      ctx.fill();
+      x += (current ? wide : dot) + gap;
+    }
+    ctx.restore();
+  }
+
+  function drawFade(ctx, board, time) {
+    if (!board.fade) return;
+    const total = duration(board);
+    const shade = Math.max(1 - clamp01(time / 0.35), clamp01((time - (total - 0.35)) / 0.35));
+    if (shade <= 0.01) return;
+    ctx.save();
+    ctx.globalAlpha = shade;
+    ctx.fillStyle = "#050d16";
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+  }
+
   function draw(ctx, board, time) {
     if (!ctx || !board) return;
     paintBackdrop(ctx);
-    const headlineBottom = drawHeadline(ctx, board);
-    const boxes = layout(board, headlineBottom + 36);
-    (board.edges || []).forEach((edge) => {
-      drawEdge(ctx, boxes[edge.from], boxes[edge.to], edgeProgress(board, edge, time), edge.tone, time);
-    });
-    Object.keys(boxes).forEach((id) => {
-      const box = boxes[id];
-      drawNode(ctx, box, nodeProgress(board, box.node, time), time);
-    });
+    if (board.layout === "statement" || board.layout === "question") {
+      drawFocus(ctx, board, time);
+    } else {
+      const headlineBottom = board.headline ? drawHeadline(ctx, board) : drawHeadline(ctx, board) - 40;
+      const top = headlineBottom + 36;
+      const boxes = layout(board, top);
+      const panels = board.layout === "steps" || board.layout === "checklist" || board.layout === "compare";
+      if (board.layout === "compare") drawColumns(ctx, board, boxes, top, time);
+      (board.edges || []).forEach((edge) => {
+        if (panels) return;
+        drawEdge(ctx, boxes[edge.from], boxes[edge.to], edgeProgress(board, edge, time), edge.tone, time);
+      });
+      Object.keys(boxes).forEach((id) => {
+        const box = boxes[id];
+        const progress = nodeProgress(board, box.node, time);
+        if (panels) drawPanel(ctx, box, progress);
+        else drawNode(ctx, box, progress, time);
+      });
+    }
     drawCaption(ctx, board, time);
+    drawProgress(ctx, board);
+    drawFade(ctx, board, time);
   }
 
   window.LinkedInMotion = { draw, duration, beatAt, width: W, height: H };
