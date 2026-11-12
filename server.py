@@ -17,6 +17,7 @@ from pathlib import Path
 from cards import design_cards
 from documents import MAX_ATTACHMENT_BYTES, extract_document
 from media import ffmpeg_path, join_videos, parse_fps, render_mp4, render_sequence
+from stills import render_stills, stills_from_multipart
 from motion import (
     MAX_SCENES,
     scenes_from_payload,
@@ -37,6 +38,7 @@ FETCH_TIMEOUT = 12
 TEXT_LIMIT = 4_000
 MAX_REQUEST_BYTES = MAX_ATTACHMENT_BYTES + 100_000
 MAX_SCENE_VIDEO_BYTES = 40_000_000
+MAX_STILL_REQUEST_BYTES = 56_000_000
 MAX_STITCH_BYTES = 160_000_000
 
 MODELS = (
@@ -575,7 +577,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/":
             self.serve_file("index.html", "text/html; charset=utf-8")
             return
-        if path in {"/styles.css", "/app.js", "/cards.js", "/motion.js", "/script.js"}:
+        if path in {"/styles.css", "/app.js", "/cards.js", "/motion.js", "/script.js", "/stills.js"}:
             content_type = "text/css; charset=utf-8" if path.endswith(".css") else "text/javascript; charset=utf-8"
             self.serve_file(path.lstrip("/"), content_type)
             return
@@ -588,6 +590,9 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == "/api/motion":
             self.handle_motion()
+            return
+        if path == "/api/stills":
+            self.handle_stills()
             return
         if path == "/api/script":
             self.handle_script()
@@ -696,6 +701,26 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "video/mp4")
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Content-Disposition", 'attachment; filename="linkedin-explainer.mp4"')
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(data)
+
+    def handle_stills(self) -> None:
+        length = int(self.headers.get("Content-Length", "0") or "0")
+        if length <= 0 or length > MAX_STILL_REQUEST_BYTES:
+            self.send_json(413, {"error": "Those pictures are too large."})
+            return
+        body = self.rfile.read(length)
+        try:
+            shots = stills_from_multipart(self.headers.get("Content-Type", ""), body)
+            data = render_stills(shots)
+        except ValueError as exc:
+            self.send_json(400, {"error": str(exc)})
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "video/mp4")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Content-Disposition", 'attachment; filename="picture-video.mp4"')
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(data)

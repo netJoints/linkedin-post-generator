@@ -145,6 +145,7 @@ async function refreshModels() {
     const health = await response.json();
     if (window.LinkedInCards) LinkedInCards.setFfmpeg(Boolean(health.ffmpeg));
     if (window.LinkedInScript) LinkedInScript.setFfmpeg(Boolean(health.ffmpeg));
+    if (window.LinkedInStills) LinkedInStills.setFfmpeg(Boolean(health.ffmpeg));
     if (!health.ollama) {
       banner.hidden = false;
       banner.textContent = "Ollama is not running. Start it, then reload this page.";
@@ -179,6 +180,9 @@ form.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (window.LinkedInScript && LinkedInScript.isVideoMode()) {
     LinkedInScript.planFromScript();
+    return;
+  }
+  if (window.LinkedInStills && LinkedInStills.isStillsMode()) {
     return;
   }
   controller = new AbortController();

@@ -129,13 +129,21 @@
   }
 
   function applyMode() {
-    const video = isVideoMode();
-    draftFields.hidden = video;
+    const picked = document.querySelector('input[name="mode"]:checked');
+    const mode = picked ? picked.value : "draft";
+    const video = mode === "video";
+    const stills = mode === "stills";
+    const focused = video || stills;
+    draftFields.hidden = focused;
     scriptFields.hidden = !video;
     scriptCard.hidden = !video;
-    if (topics) topics.required = !video;
+    const stillsFields = document.querySelector("#stills-fields");
+    const stillsCard = document.querySelector("#stills-card");
+    if (stillsFields) stillsFields.hidden = !stills;
+    if (stillsCard) stillsCard.hidden = !stills || stillsCard.dataset.ready !== "1";
+    if (topics) topics.required = !focused;
     document.querySelectorAll(".draft-only").forEach((node) => {
-      if (video) {
+      if (focused) {
         node.dataset.wasHidden = node.hidden ? "1" : "0";
         node.hidden = true;
       } else if (node.dataset.wasHidden === "0") {
