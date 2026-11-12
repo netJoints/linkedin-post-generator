@@ -12,7 +12,7 @@
       <p class="eyebrow">On this laptop</p>
       <h1>LinkedIn drafts</h1>
     </div>
-      <p class="lede">A long article, a video caption, swipeable cards, and an animated explainer, written on this laptop. You can also paste a script and make only the animated video. Nothing is sent to a cloud model.</p>
+      <p class="lede">A long article, a video caption, swipeable cards, and an animated explainer, written on this laptop. You can also paste a script, make only the animated video, or turn still pictures with a caption on each into a video. Nothing is sent to a cloud model.</p>
     <nav class="key-links" aria-label="Published pages">
       <a href="https://netjoints.github.io/linkedin-post-generator/">Slide deck</a>
       <a href="https://netjoints.github.io/linkedin-post-generator/cards/">Why the cards</a>
@@ -32,6 +32,10 @@
         <label class="choice">
           <input type="radio" name="mode" value="video">
           Animated video only
+        </label>
+        <label class="choice">
+          <input type="radio" name="mode" value="stills">
+          Picture video
         </label>
       </fieldset>
 
@@ -103,6 +107,19 @@
           <button id="plan-video" type="button">Plan the video</button>
         </div>
       </div>
+
+      <div id="stills-fields" hidden>
+        <div class="file-field">
+          <div class="file-label">Pictures</div>
+          <div class="file-row">
+            <label class="file-button" for="stills-files">Choose pictures</label>
+            <input id="stills-files" type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.svg,image/jpeg,image/png,image/webp,image/gif,image/svg+xml" multiple>
+          </div>
+        </div>
+        <p class="hint">Up to 12 pictures. JPEG, PNG, WEBP, GIF, or SVG. Write a short caption on each one. About 3.5 seconds a picture, in a portrait frame that fills a phone. The pictures are not saved.</p>
+        <ul id="stills-list" class="stills-list"></ul>
+        <p id="stills-status" class="progress" role="status">Add pictures, then write a caption for each.</p>
+      </div>
     </form>
 
     <section class="results" aria-live="polite">
@@ -126,6 +143,26 @@
         </div>
         <p id="script-caption" class="cards-caption"></p>
         <p id="script-video-note" class="hint" hidden>Video export needs ffmpeg. Install it, reload this page, and the explainer can be saved as an MP4. Play still works without it.</p>
+      </article>
+
+      <article class="panel draft-card" id="stills-card" hidden>
+        <header class="card-head">
+          <div>
+            <h2>Picture video</h2>
+            <p class="hint">Each caption is drawn on its picture. Play checks the sequence. Download video saves an MP4 you can attach to the post.</p>
+          </div>
+        </header>
+        <div class="actions script-actions">
+          <button id="stills-play" type="button" disabled>Play</button>
+          <button id="stills-download" type="button" hidden disabled>Download video</button>
+        </div>
+        <p id="stills-progress" class="progress" role="status"></p>
+        <div class="cards-stage">
+          <p id="stills-empty" class="empty">The video will land here.</p>
+          <canvas id="stills-canvas" hidden aria-hidden="true"></canvas>
+        </div>
+        <p id="stills-caption" class="cards-caption"></p>
+        <p id="stills-video-note" class="hint" hidden>Video export needs ffmpeg. Install it, reload this page, and the video can be saved as an MP4. Play still works without it.</p>
       </article>
 
       <article class="panel draft-card draft-only" id="live-card" hidden>
@@ -214,6 +251,7 @@
   </main>
   <script src="/motion.js"></script>
   <script src="/script.js"></script>
+  <script src="/stills.js"></script>
   <script src="/cards.js"></script>
   <script src="/app.js"></script>
 </body>

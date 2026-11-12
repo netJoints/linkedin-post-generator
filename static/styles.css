@@ -226,7 +226,8 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 
 #stop, .card-actions button[data-download],
 #cards-images, #cards-cover, #cards-video, #cards-motion,
-#script-play, #script-play-all, #script-download, #add-scene, .cards-nav button {
+#script-play, #script-play-all, #script-download, #add-scene,
+#stills-play, #stills-download, .cards-nav button {
   background: transparent;
   color: var(--ink);
   border: 1px solid var(--line);
@@ -306,14 +307,29 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   background: #ebe4d8;
 }
 
-#cards-canvas, #script-canvas {
+#cards-canvas, #script-canvas, #stills-canvas {
   display: block;
   width: min(100%, 420px);
   height: auto;
   border-radius: 12px;
 }
 
-#cards-canvas[hidden], #script-canvas[hidden] { display: none; }
+#cards-canvas[hidden], #script-canvas[hidden], #stills-canvas[hidden] { display: none; }
+
+.stills-list { display: grid; gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
+
+.stills-list li { display: flex; align-items: center; gap: 10px; }
+
+.stills-list img { width: 72px; height: 72px; flex: none; object-fit: cover; border-radius: 8px; background: #ebe4d8; }
+
+.stills-list input { flex: 1; min-width: 0; }
+
+.stills-list button {
+  padding: 6px 10px;
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
 
 .cards-caption {
   min-height: 1.2em;
