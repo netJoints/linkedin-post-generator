@@ -217,16 +217,17 @@ button {
 
 button:disabled { cursor: not-allowed; opacity: 0.45; }
 
-#generate, #plan-video, .card-actions button[data-copy], #cards-pdf {
+#generate, #plan-video, #read-pictures, .card-actions button[data-copy], #cards-pdf, #pics-copy {
   background: var(--accent);
   color: white;
 }
 
-#generate:hover:not(:disabled), #plan-video:hover:not(:disabled), #cards-pdf:hover:not(:disabled) { background: var(--accent-dark); }
+#generate:hover:not(:disabled), #plan-video:hover:not(:disabled), #read-pictures:hover:not(:disabled), #cards-pdf:hover:not(:disabled), #pics-copy:hover:not(:disabled) { background: var(--accent-dark); }
 
 #stop, .card-actions button[data-download],
 #cards-images, #cards-cover, #cards-video, #cards-motion,
-#script-play, #script-play-all, #script-download, #add-scene, .cards-nav button {
+#script-play, #script-play-all, #script-download, #add-scene, #pics-play, #pics-download,
+#stills-play, #stills-download, #reel-play, #reel-download, .cards-nav button {
   background: transparent;
   color: var(--ink);
   border: 1px solid var(--line);
@@ -306,14 +307,76 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   background: #ebe4d8;
 }
 
-#cards-canvas, #script-canvas {
+#cards-canvas, #script-canvas, #pics-canvas, #stills-canvas, #reel-canvas {
   display: block;
   width: min(100%, 420px);
   height: auto;
   border-radius: 12px;
 }
 
-#cards-canvas[hidden], #script-canvas[hidden] { display: none; }
+#cards-canvas[hidden], #script-canvas[hidden], #pics-canvas[hidden], #stills-canvas[hidden], #reel-canvas[hidden] { display: none; }
+
+#pics-canvas.wide { width: min(100%, 720px); }
+
+.pics-video-options { display: grid; gap: 4px 16px; margin-top: 14px; }
+.pics-video-options label { margin-top: 0; }
+
+#reel-stage { background: #ede6d5; }
+
+.stills-list li { align-items: stretch; }
+
+.stills-list input {
+  flex: 1;
+  min-width: 0;
+  align-self: center;
+}
+
+.pics-list { display: grid; gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
+
+.pics-list li { display: flex; align-items: center; gap: 10px; }
+
+#pics-list li {
+  display: grid;
+  grid-template-columns: auto 72px minmax(0, 1fr);
+  grid-template-areas:
+    "grip shot name"
+    "grip shot controls";
+  column-gap: 10px;
+  row-gap: 6px;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+}
+
+#pics-list li.is-dragging { opacity: 0.45; }
+
+#pics-list li.is-drop { border-color: var(--accent); background: #f3f7fb; }
+
+.pics-grip {
+  grid-area: grip;
+  color: var(--muted);
+  cursor: grab;
+  letter-spacing: -0.14em;
+  user-select: none;
+}
+
+.pics-grip:active { cursor: grabbing; }
+
+#pics-list .pics-name { grid-area: name; }
+
+.pics-controls { grid-area: controls; display: flex; flex-wrap: wrap; gap: 6px; }
+
+.pics-list img { width: 72px; height: 72px; object-fit: cover; border-radius: 8px; background: #ebe4d8; }
+
+#pics-list img { grid-area: shot; }
+
+.pics-list button {
+  padding: 6px 10px;
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
 
 .cards-caption {
   min-height: 1.2em;

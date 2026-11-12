@@ -129,14 +129,34 @@
   }
 
   function applyMode() {
-    const video = isVideoMode();
-    draftFields.hidden = video;
+    const picked = document.querySelector('input[name="mode"]:checked');
+    const mode = picked ? picked.value : "draft";
+    const video = mode === "video";
+    const pics = mode === "pics";
+    const stills = mode === "stills";
+    const reel = mode === "reel";
+    const focused = video || pics || stills || reel;
+    draftFields.hidden = focused;
     scriptFields.hidden = !video;
     scriptCard.hidden = !video;
-    if (topics) topics.required = !video;
+    const picsFields = document.querySelector("#pics-fields");
+    const picsCard = document.querySelector("#pics-card");
+    if (picsFields) picsFields.hidden = !pics;
+    if (picsCard) picsCard.hidden = !pics || picsCard.dataset.ready !== "1";
+    const stillsFields = document.querySelector("#stills-fields");
+    const stillsCard = document.querySelector("#stills-card");
+    if (stillsFields) stillsFields.hidden = !stills;
+    if (stillsCard) stillsCard.hidden = !stills || stillsCard.dataset.ready !== "1";
+    const reelFields = document.querySelector("#reel-fields");
+    const reelCard = document.querySelector("#reel-card");
+    if (reelFields) reelFields.hidden = !reel;
+    if (reelCard) reelCard.hidden = !reel;
+    if (topics) topics.required = !focused;
+    const model = document.querySelector("#model");
+    if (model) model.required = !focused;
     document.querySelectorAll(".draft-only").forEach((node) => {
-      if (video) {
-        node.dataset.wasHidden = node.hidden ? "1" : "0";
+      if (focused) {
+        if (node.dataset.wasHidden === undefined) node.dataset.wasHidden = node.hidden ? "1" : "0";
         node.hidden = true;
       } else if (node.dataset.wasHidden === "0") {
         node.hidden = false;

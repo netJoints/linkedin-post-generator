@@ -145,6 +145,9 @@ async function refreshModels() {
     const health = await response.json();
     if (window.LinkedInCards) LinkedInCards.setFfmpeg(Boolean(health.ffmpeg));
     if (window.LinkedInScript) LinkedInScript.setFfmpeg(Boolean(health.ffmpeg));
+    if (window.LinkedInPics) LinkedInPics.setFfmpeg(Boolean(health.ffmpeg));
+    if (window.LinkedInStills) LinkedInStills.setFfmpeg(Boolean(health.ffmpeg));
+    if (window.LinkedInReel) LinkedInReel.setFfmpeg(Boolean(health.ffmpeg));
     if (!health.ollama) {
       banner.hidden = false;
       banner.textContent = "Ollama is not running. Start it, then reload this page.";
@@ -152,11 +155,23 @@ async function refreshModels() {
       return;
     }
     const ready = new Set(health.models || []);
+    const picsModel = document.querySelector("#pics-model");
     let selectedStillThere = false;
     for (const option of modelSelect.options) {
       const installed = ready.has(option.value);
       option.disabled = !installed;
+      if (picsModel) {
+        const twin = [...picsModel.options].find((item) => item.value === option.value);
+        if (twin) twin.disabled = !installed;
+      }
       if (installed && option.value === modelSelect.value) selectedStillThere = true;
+    }
+    if (picsModel) {
+      const twinReady = [...picsModel.options].some((option) => !option.disabled && option.value === picsModel.value);
+      if (!twinReady) {
+        const firstTwin = [...picsModel.options].find((option) => !option.disabled);
+        if (firstTwin) picsModel.value = firstTwin.value;
+      }
     }
     if (!selectedStillThere) {
       const first = [...modelSelect.options].find((option) => !option.disabled);
@@ -179,6 +194,16 @@ form.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (window.LinkedInScript && LinkedInScript.isVideoMode()) {
     LinkedInScript.planFromScript();
+    return;
+  }
+  if (window.LinkedInPics && LinkedInPics.isPicsMode()) {
+    LinkedInPics.readPictures();
+    return;
+  }
+  if (window.LinkedInStills && LinkedInStills.isStillsMode()) {
+    return;
+  }
+  if (window.LinkedInReel && LinkedInReel.isReelMode()) {
     return;
   }
   controller = new AbortController();

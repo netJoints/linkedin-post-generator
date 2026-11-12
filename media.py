@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import array
+import io
+import math
 import shutil
 import subprocess
 import tempfile
+import wave
 from pathlib import Path
 
 MAX_FRAMES = 10
@@ -13,6 +17,12 @@ MAX_FRAME_BYTES = 3_000_000
 MAX_SCENE_VIDEOS = 10
 MAX_SCENE_VIDEO_BYTES = 40_000_000
 JPEG_PREFIX = b"\xff\xd8\xff"
+PORTRAIT = (1080, 1350)
+LANDSCAPE = (1920, 1080)
+_SOF = {0xC0, 0xC1, 0xC2}
+_STANDALONE = set(range(0xD0, 0xDA)) | {0x00, 0x01}
+_LOOP_SECONDS = 16
+_LOOP: array.array | None = None
 
 
 def ffmpeg_path() -> str | None:
@@ -58,7 +68,7 @@ def render_sequence(frames: list[bytes], fps: int) -> bytes:
     return _render(frames, str(fps), "frame", "explainer.mp4", "linkedin-motion-")
 
 
-def join_videos(videos: list[bytes]) -> bytes:
+def join_videos(videos: list[bytes], music: bool = False) -> bytes:
     """Play the card videos one after another. Names are ours; the request supplies only bytes."""
     if not videos:
         raise ValueError("There are no card videos to join.")
@@ -67,8 +77,10 @@ def join_videos(videos: list[bytes]) -> bytes:
     for video in videos:
         if len(video) < 1000 or len(video) > MAX_SCENE_VIDEO_BYTES or b"ftyp" not in video[:32]:
             raise ValueError("A card video was not a valid MP4.")
-    if len(videos) == 1:
+    if len(videos) == 1 and not music:
         return videos[0]
+    if len(videos) == 1:
+        return _with_bed(videos[0])
     exe = ffmpeg_path()
     if not exe:
         raise ValueError("ffmpeg is not installed, so the cards could not be joined.")
@@ -123,7 +135,146 @@ def join_videos(videos: list[bytes]) -> bytes:
         data = out.read_bytes() if out.is_file() else b""
     if len(data) < 1000 or b"ftyp" not in data[:32]:
         raise ValueError("The cards could not be joined into one video.")
+    if music:
+        return _with_bed(data)
     return data
+
+
+def sequence_scale(frames: list[bytes]) -> str:
+    """Scale to a fixed frame. Landscape stays 1920×1080. Everything else stays 1080×1350.
+
+    The size comes from the JPEG header and is accepted only when every frame matches one of those two.
+    The filter string is never built from request text.
+    """
+    size = _jpeg_size(frames[0]) if frames else None
+    if size in (PORTRAIT, LANDSCAPE) and all(_jpeg_size(frame) == size for frame in frames):
+        width, height = size
+        return f"scale={width}:{height}:flags=lanczos,format=yuv420p"
+    return "scale=1080:1350:flags=lanczos,format=yuv420p"
+
+
+def bed_wav(duration: float) -> bytes:
+    """An original quiet loop. The peak is held near one tenth of full scale."""
+    seconds = min(180.0, max(1.0, float(duration)))
+    loop = _music_loop()
+    tiled = array.array("h")
+    while len(tiled) < int(seconds * 48000) * 2:
+        tiled.extend(loop)
+    del tiled[int(seconds * 48000) * 2 :]
+    handle = io.BytesIO()
+    with wave.open(handle, "wb") as writer:
+        writer.setnchannels(2)
+        writer.setsampwidth(2)
+        writer.setframerate(48000)
+        writer.writeframes(tiled.tobytes())
+    return handle.getvalue()
+
+
+def _music_loop() -> array.array:
+    """Sixteen seconds, four chords, stereo. Built once, then reused."""
+    global _LOOP
+    if _LOOP is not None:
+        return _LOOP
+    rate = 48000
+    chords = (
+        (130.81, 164.81, 196.00),
+        (110.00, 164.81, 220.00),
+        (87.31, 130.81, 174.61),
+        (98.00, 146.83, 196.00),
+    )
+    total = _LOOP_SECONDS * rate
+    mono = array.array("f")
+    for index in range(total):
+        t = index / rate
+        slot = int(t // 4) % 4
+        local = t - (int(t // 4) * 4)
+        edge = local if local < 0.45 else (4 - local if local > 3.55 else 0.45)
+        env = min(1.0, edge / 0.45)
+        freqs = chords[slot]
+        pad = (
+            math.sin(math.tau * freqs[0] * t)
+            + math.sin(math.tau * freqs[1] * t)
+            + math.sin(math.tau * freqs[2] * t)
+        ) / 3
+        beat = t - int(t)
+        tick = math.sin(math.tau * 523.25 * t) * math.exp(-28 * beat) if beat < 0.18 else 0.0
+        mono.append((pad * 0.75 * env) + (tick * 0.25))
+    peak = max(abs(sample) for sample in mono) or 1.0
+    scale = 0.09 * 32767 / peak
+    stereo = array.array("h")
+    for sample in mono:
+        packed = int(max(-32767, min(32767, sample * scale)))
+        stereo.append(packed)
+        stereo.append(packed)
+    _LOOP = stereo
+    return stereo
+
+
+def _with_bed(video: bytes) -> bytes:
+    """Replace the silent track with the quiet bed. The picture frames are copied, not re-encoded."""
+    exe = ffmpeg_path()
+    if not exe:
+        raise ValueError("ffmpeg is not installed, so the music could not be added.")
+    with tempfile.TemporaryDirectory(prefix="linkedin-bed-") as folder:
+        root = Path(folder)
+        (root / "video.mp4").write_bytes(video)
+        (root / "bed.wav").write_bytes(bed_wav(96))
+        out = root / "with-bed.mp4"
+        fade = "afade=t=in:st=0:d=1.2,areverse,afade=t=in:st=0:d=2,areverse"
+        command = [
+            exe, "-y", "-hide_banner", "-loglevel", "error",
+            "-i", "video.mp4",
+            "-i", "bed.wav",
+            "-map", "0:v:0",
+            "-map", "1:a:0",
+            "-c:v", "copy",
+            "-c:a", "aac",
+            "-b:a", "96k",
+            "-af", fade,
+            "-shortest",
+            "-movflags", "+faststart",
+            "with-bed.mp4",
+        ]
+        try:
+            _run(command, 120, root)
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+            raise ValueError("The music could not be added to the video.") from exc
+        data = out.read_bytes() if out.is_file() else b""
+    if len(data) < 1000 or b"ftyp" not in data[:32]:
+        raise ValueError("The music could not be added to the video.")
+    return data
+
+
+def _jpeg_size(data: bytes) -> tuple[int, int] | None:
+    if len(data) < 10 or not data.startswith(JPEG_PREFIX):
+        return None
+    index = 2
+    steps = 0
+    while index + 8 < len(data) and steps < 40:
+        steps += 1
+        if data[index] != 0xFF:
+            return None
+        while index < len(data) and data[index] == 0xFF:
+            index += 1
+        if index >= len(data):
+            return None
+        marker = data[index]
+        index += 1
+        if marker in _STANDALONE:
+            continue
+        if index + 2 > len(data):
+            return None
+        length = int.from_bytes(data[index : index + 2], "big")
+        if length < 2 or index + length > len(data):
+            return None
+        if marker in _SOF and length >= 7:
+            height = int.from_bytes(data[index + 3 : index + 5], "big")
+            width = int.from_bytes(data[index + 5 : index + 7], "big")
+            if width < 2 or height < 2:
+                return None
+            return width, height
+        index += length
+    return None
 
 
 def _check_jpegs(frames: list[bytes], motion: bool = False) -> None:
@@ -153,7 +304,7 @@ def _render(frames: list[bytes], framerate: str, stem: str, filename: str, prefi
         leading = [exe, "-y", "-hide_banner", "-loglevel", "error", "-framerate", framerate, "-i", pattern]
         encoding = [
             "-vf",
-            "scale=1080:1350:flags=lanczos,format=yuv420p",
+            sequence_scale(frames),
             "-c:v",
             "libx264",
             "-profile:v",

@@ -24,6 +24,8 @@ from motion import (
     storyboard_from_plan,
     storyboard_from_script,
 )
+from pictures import MAX_PICTURES, check_jpeg, post_from_pictures
+from stills import render_stills, stills_from_multipart
 from youtube import fetch_transcript, youtube_video_id
 
 HOST = "127.0.0.1"
@@ -38,6 +40,8 @@ TEXT_LIMIT = 4_000
 MAX_REQUEST_BYTES = MAX_ATTACHMENT_BYTES + 100_000
 MAX_SCENE_VIDEO_BYTES = 40_000_000
 MAX_STITCH_BYTES = 160_000_000
+MAX_PICTURE_REQUEST_BYTES = 36_000_000
+MAX_STILL_REQUEST_BYTES = 56_000_000
 
 MODELS = (
     {
@@ -575,7 +579,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/":
             self.serve_file("index.html", "text/html; charset=utf-8")
             return
-        if path in {"/styles.css", "/app.js", "/cards.js", "/motion.js", "/script.js"}:
+        if path in {"/styles.css", "/app.js", "/cards.js", "/motion.js", "/script.js", "/pics.js", "/stills.js", "/reel.js"}:
             content_type = "text/css; charset=utf-8" if path.endswith(".css") else "text/javascript; charset=utf-8"
             self.serve_file(path.lstrip("/"), content_type)
             return
@@ -597,6 +601,12 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == "/api/stitch":
             self.handle_stitch()
+            return
+        if path == "/api/pictures":
+            self.handle_pictures()
+            return
+        if path == "/api/stills":
+            self.handle_stills()
             return
         if path != "/api/generate":
             self.send_error(404)
@@ -680,6 +690,44 @@ class Handler(BaseHTTPRequestHandler):
             return
         self.send_json(200, {"scenes": scenes})
 
+    def handle_stills(self) -> None:
+        length = int(self.headers.get("Content-Length", "0") or "0")
+        if length <= 0 or length > MAX_STILL_REQUEST_BYTES:
+            self.send_json(413, {"error": "Those pictures are too large."})
+            return
+        body = self.rfile.read(length)
+        try:
+            shots = stills_from_multipart(self.headers.get("Content-Type", ""), body)
+            data = render_stills(shots)
+        except ValueError as exc:
+            self.send_json(400, {"error": str(exc)})
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "video/mp4")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Content-Disposition", 'attachment; filename="picture-video.mp4"')
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(data)
+
+    def handle_pictures(self) -> None:
+        length = int(self.headers.get("Content-Length", "0") or "0")
+        if length <= 0 or length > MAX_PICTURE_REQUEST_BYTES:
+            self.send_json(413, {"error": "Those pictures are too large."})
+            return
+        body = self.rfile.read(length)
+        try:
+            model, instructions, images = pictures_from_multipart(self.headers.get("Content-Type", ""), body)
+            post = strip_post_urls(post_from_pictures(model, instructions, images))
+            if len(post.split()) < 20:
+                raise ValueError(
+                    "The model could not write a post from these pictures. Add a short instruction, or try fewer pictures."
+                )
+        except ValueError as exc:
+            self.send_json(400, {"error": str(exc)})
+            return
+        self.send_json(200, {"post": post})
+
     def handle_stitch(self) -> None:
         length = int(self.headers.get("Content-Length", "0") or "0")
         if length <= 0 or length > MAX_STITCH_BYTES:
@@ -687,8 +735,8 @@ class Handler(BaseHTTPRequestHandler):
             return
         body = self.rfile.read(length)
         try:
-            videos = videos_from_multipart(self.headers.get("Content-Type", ""), body)
-            data = join_videos(videos)
+            videos, music = stitch_parts(self.headers.get("Content-Type", ""), body)
+            data = join_videos(videos, music=music)
         except ValueError as exc:
             self.send_json(400, {"error": str(exc)})
             return
@@ -1025,7 +1073,51 @@ def motion_from_multipart(content_type: str, body: bytes) -> tuple[list[bytes], 
     return [content for _, content in frames], fps
 
 
+def pictures_from_multipart(content_type: str, body: bytes) -> tuple[str, str, list[bytes]]:
+    """Model, instructions, and JPEG bytes. The filename is only an order number."""
+    match = re.search(r'boundary="?([^";]+)"?', content_type, re.I)
+    if not match:
+        raise ValueError("The pictures were not valid.")
+    boundary = match.group(1).encode("utf-8", errors="strict")
+    if not boundary or len(boundary) > 200:
+        raise ValueError("The pictures were not valid.")
+    model = ""
+    instructions = ""
+    pictures: list[tuple[int, bytes]] = []
+    for headers, content in split_multipart(body, boundary):
+        disposition = headers.get("content-disposition", "")
+        name = disposition_value(disposition, "name")
+        filename = disposition_filename(disposition)
+        if filename is None:
+            text = content.decode("utf-8", errors="replace")
+            if name == "model":
+                model = text.strip()
+            elif name == "instructions":
+                instructions = clean_instructions(text)
+            continue
+        check_jpeg(content)
+        numbered = re.fullmatch(r"picture-(\d+)\.jpe?g", filename, re.I)
+        pictures.append((int(numbered.group(1)) if numbered else len(pictures), content))
+        if len(pictures) > MAX_PICTURES:
+            raise ValueError(f"Use {MAX_PICTURES} pictures or fewer.")
+    if model not in MODEL_IDS:
+        raise ValueError("Choose Mistral Small 3.2 or Gemma 4 12B.")
+    if not pictures:
+        raise ValueError("Add at least one picture.")
+    pictures.sort(key=lambda item: item[0])
+    return model, instructions, [content for _, content in pictures]
+
+
 def videos_from_multipart(content_type: str, body: bytes) -> list[bytes]:
+    videos, _music = stitch_parts(content_type, body)
+    return videos
+
+
+def stitch_parts(content_type: str, body: bytes) -> tuple[list[bytes], bool]:
+    """Video bytes in card order, plus whether to mix the quiet music bed.
+
+    The music field is accepted only as the exact word quiet. It never becomes a path or a command.
+    """
     match = re.search(r'boundary="?([^";]+)"?', content_type, re.I)
     if not match:
         raise ValueError("The card videos were not valid.")
@@ -1033,9 +1125,13 @@ def videos_from_multipart(content_type: str, body: bytes) -> list[bytes]:
     if not boundary or len(boundary) > 200:
         raise ValueError("The card videos were not valid.")
     videos: list[tuple[int, bytes]] = []
+    music = False
     for headers, content in split_multipart(body, boundary):
-        filename = disposition_filename(headers.get("content-disposition", ""))
+        disposition = headers.get("content-disposition", "")
+        filename = disposition_filename(disposition)
         if filename is None:
+            if disposition_value(disposition, "name") == "music":
+                music = content.decode("utf-8", errors="replace").strip() == "quiet"
             continue
         if len(content) > MAX_SCENE_VIDEO_BYTES:
             raise ValueError("One card video is too large.")
@@ -1046,7 +1142,7 @@ def videos_from_multipart(content_type: str, body: bytes) -> list[bytes]:
     if not videos:
         raise ValueError("There are no card videos to join.")
     videos.sort(key=lambda item: item[0])
-    return [content for _, content in videos]
+    return [content for _, content in videos], music
 
 
 def frames_from_multipart(content_type: str, body: bytes) -> list[bytes]:
