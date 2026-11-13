@@ -7,6 +7,13 @@
   const SHOT_SECONDS = 8;
   const TRANSITION_SECONDS = 0.7;
   const TRANSITIONS = new Set(["crossfade", "slide", "wipe", "push", "zoom"]);
+  const MUSIC = new Set(["beat", "river", "inspiration", "inventing", "energizing", "celebration"]);
+  // Gains match MUSIC_LEVELS in media.py. Preview uses the same number as the player volume.
+  const MUSIC_GAIN = { low: 0.06, medium: 0.12, high: 0.22 };
+  const VOICE_MODES = new Set(["file", "tts"]);
+  const VOICE_LEVELS = new Set(["soft", "normal", "strong"]);
+  const VOICE_PREVIEW_GAIN = { soft: 0.55, normal: 0.85, strong: 1 };
+  const MAX_VOICE_BYTES = 12 * 1024 * 1024;
   const TYPES = new Set(["jpg", "jpeg", "png", "webp", "gif", "svg"]);
   const FONT = '"Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif';
 
@@ -29,6 +36,25 @@
   const instructions = document.querySelector("#pics-instructions");
   const transitionSelect = document.querySelector("#pics-transition");
   const musicInput = document.querySelector("#pics-music");
+  const musicPreview = document.querySelector("#pics-music-preview");
+  const musicAudio = document.querySelector("#pics-music-audio");
+  const musicLevel = document.querySelector("#pics-music-level");
+  const voiceSelect = document.querySelector("#pics-voice");
+  const voiceLevel = document.querySelector("#pics-voice-level");
+  const voiceLevelLabel = document.querySelector("#pics-voice-level-label");
+  const voiceFileRow = document.querySelector("#pics-voice-file-row");
+  const voiceFileInput = document.querySelector("#pics-voice-file");
+  const voiceFilename = document.querySelector("#pics-voice-filename");
+  const voicePreviewButton = document.querySelector("#pics-voice-preview");
+  const voiceTtsRow = document.querySelector("#pics-voice-tts-row");
+  const ttsVoiceSelect = document.querySelector("#pics-tts-voice");
+  const ttsPreviewButton = document.querySelector("#pics-tts-preview");
+  const myVoiceFile = document.querySelector("#my-voice-file");
+  const myVoiceFilename = document.querySelector("#my-voice-filename");
+  const myVoiceStatus = document.querySelector("#my-voice-status");
+  const mySaveButton = document.querySelector("#my-voice-save");
+  const myForgetButton = document.querySelector("#my-voice-forget");
+  const voiceAudio = document.querySelector("#pics-voice-audio");
 
   let stage = { w: 1080, h: 1350, wide: false };
 
@@ -38,6 +64,9 @@
   let ffmpegKnown = false;
   let busy = false;
   let playToken = 0;
+  let voiceObjectUrl = "";
+  let voicesLoaded = false;
+  let myVoice = { enrolled: false };
 
   function isPicsMode() {
     const picked = document.querySelector('input[name="mode"]:checked');
@@ -98,6 +127,19 @@
     count.textContent = words(postInput.value);
     if (transitionSelect) transitionSelect.disabled = busy;
     if (musicInput) musicInput.disabled = busy;
+    if (musicLevel) musicLevel.disabled = busy || !musicChoice();
+    if (musicPreview) musicPreview.disabled = busy || !musicChoice();
+    if (voiceSelect) voiceSelect.disabled = busy;
+    if (voiceLevel) voiceLevel.disabled = busy;
+    if (voiceFileInput) voiceFileInput.disabled = busy;
+    const recording = voiceFileInput && voiceFileInput.files ? voiceFileInput.files[0] : null;
+    if (voicePreviewButton) voicePreviewButton.disabled = busy || voiceMode() !== "file" || !recording;
+    if (ttsVoiceSelect) ttsVoiceSelect.disabled = busy || !ttsVoiceSelect.options.length;
+    if (ttsPreviewButton) ttsPreviewButton.disabled = busy || voiceMode() !== "tts" || !ttsVoice();
+    if (myVoiceFile) myVoiceFile.disabled = busy;
+    if (mySaveButton) mySaveButton.disabled = busy || !(myVoiceFile && myVoiceFile.files && myVoiceFile.files[0]);
+    if (myForgetButton) myForgetButton.disabled = busy || !myVoice.enrolled;
+    syncVoiceRows();
   }
 
   function showCard(on) {
@@ -270,7 +312,7 @@
 
   function modelJpeg(image) {
     const edge = Math.max(image.naturalWidth || image.width, image.naturalHeight || image.height);
-    const scale = Math.min(1, 1024 / edge);
+    const scale = Math.min(1, 768 / edge);
     const target = document.createElement("canvas");
     target.width = Math.max(1, Math.round((image.naturalWidth || image.width) * scale));
     target.height = Math.max(1, Math.round((image.naturalHeight || image.height) * scale));
@@ -362,8 +404,232 @@
     return TRANSITIONS.has(value) ? value : "crossfade";
   }
 
-  function musicOn() {
-    return Boolean(musicInput && musicInput.checked);
+  function musicChoice() {
+    const value = musicInput ? musicInput.value : "";
+    return MUSIC.has(value) ? value : "";
+  }
+
+  function musicLevelChoice() {
+    const value = musicLevel ? musicLevel.value : "medium";
+    return Object.prototype.hasOwnProperty.call(MUSIC_GAIN, value) ? value : "medium";
+  }
+
+  function voiceMode() {
+    const value = voiceSelect ? voiceSelect.value : "";
+    return VOICE_MODES.has(value) ? value : "";
+  }
+
+  function voiceLevelChoice() {
+    const value = voiceLevel ? voiceLevel.value : "normal";
+    return VOICE_LEVELS.has(value) ? value : "normal";
+  }
+
+  function ttsVoice() {
+    const value = ttsVoiceSelect ? ttsVoiceSelect.value : "";
+    return /^[\w .()'’-]+$/.test(value) ? value : "";
+  }
+
+  function syncVoiceRows() {
+    const mode = voiceMode();
+    if (voiceFileRow) voiceFileRow.hidden = mode !== "file";
+    if (voiceTtsRow) voiceTtsRow.hidden = mode !== "tts";
+    if (voiceLevelLabel) voiceLevelLabel.hidden = !mode;
+  }
+
+  function stopVoicePreview() {
+    if (voiceAudio) {
+      voiceAudio.pause();
+      voiceAudio.removeAttribute("src");
+      voiceAudio.load();
+    }
+    if (voiceObjectUrl) {
+      URL.revokeObjectURL(voiceObjectUrl);
+      voiceObjectUrl = "";
+    }
+    if (voicePreviewButton) voicePreviewButton.textContent = "Preview";
+    if (ttsPreviewButton) ttsPreviewButton.textContent = "Preview";
+  }
+
+  function previewRecording() {
+    const file = voiceFileInput && voiceFileInput.files ? voiceFileInput.files[0] : null;
+    if (!file || !voiceAudio) return;
+    if (file.size > MAX_VOICE_BYTES) {
+      note("Use a recording under 12 MB.");
+      return;
+    }
+    if (!voiceAudio.paused && voiceObjectUrl) {
+      stopVoicePreview();
+      return;
+    }
+    stopMusicPreview();
+    stopVoicePreview();
+    voiceObjectUrl = URL.createObjectURL(file);
+    voiceAudio.volume = VOICE_PREVIEW_GAIN[voiceLevelChoice()];
+    voiceAudio.loop = false;
+    voiceAudio.src = voiceObjectUrl;
+    voiceAudio.play().then(() => {
+      if (voicePreviewButton) voicePreviewButton.textContent = "Stop";
+    }).catch(() => {
+      stopVoicePreview();
+      note("The recording could not be played.");
+    });
+  }
+
+  async function previewSpeech() {
+    const voice = ttsVoice();
+    const words = postInput.value.trim();
+    if (!voice || !voiceAudio) return;
+    if (words.length < 2) {
+      note("Write the post first, then preview the reading.");
+      return;
+    }
+    if (!voiceAudio.paused && voiceAudio.getAttribute("src")) {
+      stopVoicePreview();
+      return;
+    }
+    stopMusicPreview();
+    stopVoicePreview();
+    if (ttsPreviewButton) ttsPreviewButton.textContent = "Reading";
+    try {
+      const response = await fetch("/api/voice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: words.slice(0, 4000), voice, level: voiceLevelChoice() }),
+      });
+      if (!response.ok) {
+        const failure = await response.json().catch(() => ({}));
+        throw new Error(failure.error || "The reading could not be made.");
+      }
+      const blob = await response.blob();
+      voiceObjectUrl = URL.createObjectURL(blob);
+      voiceAudio.volume = 1;
+      voiceAudio.loop = false;
+      voiceAudio.src = voiceObjectUrl;
+      await voiceAudio.play();
+      if (ttsPreviewButton) ttsPreviewButton.textContent = "Stop";
+    } catch (error) {
+      stopVoicePreview();
+      note(error.message || "The reading could not be made.");
+    }
+  }
+
+  async function loadVoices() {
+    if (voicesLoaded || !ttsVoiceSelect) return;
+    voicesLoaded = true;
+    try {
+      const response = await fetch("/api/voices");
+      if (!response.ok) return;
+      const data = await response.json();
+      const voices = Array.isArray(data.voices) ? data.voices : [];
+      ttsVoiceSelect.replaceChildren();
+      voices.forEach((voice) => {
+        const id = voice && typeof voice.id === "string" ? voice.id : "";
+        const label = voice && typeof voice.label === "string" ? voice.label : "";
+        if (!/^[\w .()'’-]+$/.test(id) || !label) return;
+        const option = document.createElement("option");
+        option.value = id;
+        option.textContent = label;
+        ttsVoiceSelect.append(option);
+      });
+    } catch {
+      voicesLoaded = false;
+    }
+    refreshButtons();
+  }
+
+  function renderMyVoice(status) {
+    myVoice = status && status.enrolled ? status : { enrolled: false };
+    if (myVoiceStatus) {
+      myVoiceStatus.textContent = myVoice.enrolled
+        ? `Saved sample: ${myVoice.seconds} seconds, saved ${myVoice.updated}. My voice uses it for every video.`
+        : "No sample saved yet. Record 15 to 30 seconds of you reading a paragraph in a quiet room.";
+    }
+    if (mySaveButton) mySaveButton.textContent = myVoice.enrolled ? "Re-learn my voice" : "Save my voice";
+    if (myForgetButton) myForgetButton.hidden = !myVoice.enrolled;
+    refreshButtons();
+  }
+
+  async function refreshVoiceList() {
+    if (!ttsVoiceSelect) return;
+    const previous = ttsVoiceSelect.value;
+    voicesLoaded = false;
+    await loadVoices();
+    if (Array.from(ttsVoiceSelect.options).some((option) => option.value === previous)) {
+      ttsVoiceSelect.value = previous;
+    }
+    refreshButtons();
+  }
+
+  async function loadMyVoice() {
+    try {
+      const response = await fetch("/api/my-voice");
+      if (response.ok) renderMyVoice(await response.json());
+    } catch {
+      if (myVoiceStatus) myVoiceStatus.textContent = "The saved voice sample could not be checked.";
+    }
+  }
+
+  async function saveMyVoice() {
+    const file = myVoiceFile && myVoiceFile.files ? myVoiceFile.files[0] : null;
+    if (!file) return;
+    if (file.size > MAX_VOICE_BYTES) {
+      if (myVoiceStatus) myVoiceStatus.textContent = "Use a recording under 12 MB.";
+      return;
+    }
+    if (mySaveButton) mySaveButton.textContent = "Saving";
+    refreshButtons();
+    try {
+      const body = new FormData();
+      body.append("voice", file, "voice-sample");
+      const response = await fetch("/api/my-voice", { method: "POST", body });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "The voice sample could not be saved.");
+      myVoiceFile.value = "";
+      if (myVoiceFilename) myVoiceFilename.textContent = "";
+      renderMyVoice(data);
+      await refreshVoiceList();
+    } catch (error) {
+      renderMyVoice(myVoice);
+      if (myVoiceStatus) myVoiceStatus.textContent = error.message;
+    }
+  }
+
+  async function forgetMyVoice() {
+    try {
+      const response = await fetch("/api/my-voice/forget", { method: "POST" });
+      const data = await response.json().catch(() => ({}));
+      renderMyVoice(response.ok ? data : myVoice);
+      await refreshVoiceList();
+    } catch {
+      renderMyVoice(myVoice);
+    }
+  }
+
+  function stopMusicPreview() {
+    if (!musicAudio) return;
+    musicAudio.pause();
+    musicAudio.removeAttribute("src");
+    musicAudio.load();
+    if (musicPreview) musicPreview.textContent = "Preview";
+  }
+
+  function previewMusic() {
+    const slug = musicChoice();
+    if (!slug || !musicAudio) return;
+    const src = `/music/${slug}.m4a`;
+    if (!musicAudio.paused && musicAudio.getAttribute("src") === src) {
+      stopMusicPreview();
+      return;
+    }
+    musicAudio.volume = MUSIC_GAIN[musicLevelChoice()];
+    musicAudio.loop = true;
+    musicAudio.src = src;
+    musicAudio.play().then(() => {
+      if (musicPreview) musicPreview.textContent = "Stop";
+    }).catch(() => {
+      stopMusicPreview();
+      progress.textContent = "The preview could not play.";
+    });
   }
 
   function smooth(value) {
@@ -586,6 +852,8 @@
   async function download() {
     if (busy || stale() || !shots.length || !postInput.value.trim()) return;
     stopPlayback();
+    stopMusicPreview();
+    stopVoicePreview();
     busy = true;
     refreshButtons();
     try {
@@ -610,13 +878,30 @@
         ));
       }
       let video = videos[0];
-      if (videos.length > 1 || musicOn()) {
-        progress.textContent = videos.length > 1 ? "Joining the pictures into one video" : "Adding the quiet music";
+      const music = musicChoice();
+      const spoken = voiceMode();
+      const recording = spoken === "file" && voiceFileInput && voiceFileInput.files ? voiceFileInput.files[0] : null;
+      if (spoken === "file" && !recording) throw new Error("Choose a recording, or set voiceover to None.");
+      if (recording && recording.size > MAX_VOICE_BYTES) throw new Error("Use a recording under 12 MB.");
+      if (spoken === "tts" && !ttsVoice()) throw new Error("Choose a voice, or set voiceover to None.");
+      if (videos.length > 1 || music || spoken) {
+        if (spoken) progress.textContent = "Adding the voiceover";
+        else progress.textContent = videos.length > 1 ? "Joining the pictures into one video" : "Adding the background music";
         const body = new FormData();
         videos.forEach((blob, index) => {
           body.append("videos", blob, `scene-${String(index + 1).padStart(2, "0")}.mp4`);
         });
-        if (musicOn()) body.append("music", "quiet");
+        if (music) {
+          body.append("music", music);
+          body.append("music_level", musicLevelChoice());
+        }
+        if (spoken === "file" && recording) body.append("voice", recording, "recording");
+        if (spoken === "tts") {
+          body.append("voice_mode", "tts");
+          body.append("voice_text", postInput.value.slice(0, 4000));
+          body.append("voice_name", ttsVoice());
+        }
+        if (spoken) body.append("voice_level", voiceLevelChoice());
         const response = await fetch("/api/stitch", { method: "POST", body });
         if (!response.ok) {
           const failure = await response.json().catch(() => ({}));
@@ -658,8 +943,73 @@
       if (!busy && postInput.value.trim() && shots.length) showStill();
     });
   }
+  if (musicPreview) musicPreview.addEventListener("click", previewMusic);
+  if (musicLevel) {
+    musicLevel.addEventListener("change", () => {
+      if (musicAudio && !musicAudio.paused) musicAudio.volume = MUSIC_GAIN[musicLevelChoice()];
+      if (!busy && postInput.value.trim() && shots.length) showStill();
+    });
+  }
+  if (voiceSelect) {
+    voiceSelect.addEventListener("change", () => {
+      stopVoicePreview();
+      if (voiceMode() === "tts") loadVoices();
+      refreshButtons();
+    });
+  }
+  if (voiceFileInput) {
+    voiceFileInput.addEventListener("change", () => {
+      stopVoicePreview();
+      const file = voiceFileInput.files && voiceFileInput.files[0];
+      if (voiceFilename) voiceFilename.textContent = file ? file.name : "";
+      refreshButtons();
+    });
+  }
+  if (voicePreviewButton) voicePreviewButton.addEventListener("click", previewRecording);
+  if (ttsPreviewButton) ttsPreviewButton.addEventListener("click", previewSpeech);
+  if (myVoiceFile) {
+    myVoiceFile.addEventListener("change", () => {
+      const file = myVoiceFile.files && myVoiceFile.files[0];
+      if (myVoiceFilename) myVoiceFilename.textContent = file ? file.name : "";
+      refreshButtons();
+    });
+  }
+  if (mySaveButton) mySaveButton.addEventListener("click", saveMyVoice);
+  if (myForgetButton) myForgetButton.addEventListener("click", forgetMyVoice);
+  loadMyVoice();
+  if (voiceLevel) {
+    voiceLevel.addEventListener("change", () => {
+      if (voiceAudio && !voiceAudio.paused && voiceMode() === "file") {
+        voiceAudio.volume = VOICE_PREVIEW_GAIN[voiceLevelChoice()];
+      }
+    });
+  }
+  if (voiceAudio) {
+    voiceAudio.addEventListener("ended", () => {
+      if (voicePreviewButton) voicePreviewButton.textContent = "Preview";
+      if (ttsPreviewButton) ttsPreviewButton.textContent = "Preview";
+    });
+  }
+  if (musicInput) {
+    musicInput.addEventListener("change", () => {
+      const playing = Boolean(musicAudio && !musicAudio.paused);
+      stopMusicPreview();
+      refreshButtons();
+      if (playing) previewMusic();
+    });
+  }
+  if (musicAudio) {
+    musicAudio.addEventListener("ended", () => {
+      if (musicPreview) musicPreview.textContent = "Preview";
+    });
+  }
   document.querySelectorAll('input[name="mode"]').forEach((input) => {
     input.addEventListener("change", () => {
+      if (!isPicsMode()) {
+        stopMusicPreview();
+        stopVoicePreview();
+      }
+      if (isPicsMode()) loadVoices();
       if (isPicsMode() && card.dataset.ready === "1") card.hidden = false;
     });
   });

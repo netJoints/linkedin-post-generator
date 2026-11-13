@@ -56,7 +56,9 @@ def vision_payload(model: str, prompt: str, images: list[bytes]) -> dict:
                 "images": [base64.b64encode(image).decode("ascii") for image in images],
             }
         ],
-        "options": {"temperature": 0.4, "num_predict": 700, "num_ctx": 8192},
+        # Picture reads run past the 8192 draft context: one set of slides measured 9103 tokens.
+        # 12288 leaves room for the reply and stays within this laptop's video memory.
+        "options": {"temperature": 0.4, "num_predict": 700, "num_ctx": 12288},
         "keep_alive": "10m",
     }
     if model.startswith("gemma"):
@@ -95,6 +97,11 @@ def post_from_pictures(model: str, instructions: str, images: list[bytes]) -> st
         with urllib.request.urlopen(request, timeout=300) as response:
             event = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace").lower()
+        if "context" in detail:
+            raise ValueError(
+                "These pictures are too much for the model in one go. Remove a few and read them again."
+            ) from exc
         raise ValueError(
             "The model could not read these pictures. Try fewer pictures, or the other model."
         ) from exc

@@ -269,6 +269,32 @@
       <p>LinkedIn’s member Boost accepts text, a single image, a multi-image post, an article, a video, and a newsletter. It does not accept a document, so the PDF cannot be boosted from a personal profile. The video and the image zip can. Keep every URL out of the caption. A link preview is the weakest format on the company-page chart above. This app writes the caption with no links and lists the source URLs in a first comment. A Company Page boost and a Thought Leader Ad can use the PDF. Thought Leader Ads leave multi-image posts out.</p>
     </aside>
 
+    <h2>What the app builds now</h2>
+    <p>The swipeable cards are one of several outputs. The newest is the picture video, <strong>Post via Pics</strong>: up to ten pictures, about eight seconds each, a transition between each one, a background track, and an optional voiceover that reads the post. Everything is made on this laptop with ffmpeg.</p>
+    <div class="pair">
+      <article class="panel">
+        <h3>Picture video</h3>
+        <p>Up to 10 pictures: JPEG, PNG, WebP, GIF, or SVG. About 8 seconds each, with a 0.7-second transition: crossfade, slide, wipe, push, or zoom. The post text sits on the pictures, and URLs are left out.</p>
+        <p class="fine">The pictures keep their length. A voiceover is trimmed to the picture length, so keep the post about as long as the pictures.</p>
+      </article>
+      <article class="panel">
+        <h3>Music and voice</h3>
+        <p>Six public-domain tracks (CC0, from FreePD) with Low, Medium, and High volume. The music drops under the speech. The voice is your own recording, or a local AI voice: Kokoro-82M (Apache-2.0) or Chatterbox (MIT).</p>
+        <p class="fine">Chatterbox can also speak with your voice. You save one sample once, and it is reused for every video until you save a new one. The sample stays on this laptop.</p>
+      </article>
+    </div>
+    <table>
+      <caption>Which output to upload, and whether a personal profile can boost it. Boost rules are from LinkedIn’s member Boost options, as cited above.</caption>
+      <thead><tr><th>Output</th><th>Upload as</th><th class="num">Personal profile boost</th></tr></thead>
+      <tbody>
+        <tr class="lead"><td>Picture video or explainer, MP4</td><td>Video post, with the short post as the caption</td><td class="num">Yes</td></tr>
+        <tr><td>Cards, PNG zip</td><td>Multi-image post</td><td class="num">Yes</td></tr>
+        <tr><td>Cards, PDF</td><td>Document post</td><td class="num">No</td></tr>
+        <tr><td>Article, long form</td><td>Article, with the cover image</td><td class="num">Yes</td></tr>
+      </tbody>
+    </table>
+    <p class="fine">None of the studies on this page measure a picture video with a voiceover, so this app has no engagement figures for it. The format ranking above is from those studies, not from this app.</p>
+
     <h2>What would not earn the likes</h2>
     <p>A generated scene with a caption baked into the pixels. A 16:9 export of the existing product deck. A link post, which is the lowest format on the company-page chart, at 2.50% in Q3 2026. A card that states a percentage the sources never gave you. Any of those can be built. They are not the posts that get saved.</p>
 

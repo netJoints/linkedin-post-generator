@@ -1,12 +1,10 @@
-"""Picture videos keep a landscape frame, and the music bed stays quiet."""
+"""Picture videos keep a landscape frame, and the chosen track stays quiet."""
 
-import io
 import subprocess
-import wave
 
 import pytest
 
-from media import bed_wav, ffmpeg_path, join_videos, render_sequence, sequence_scale
+from media import ffmpeg_path, join_videos, music_path, render_sequence, sequence_scale, speak
 
 
 def _jpeg(width: int, height: int) -> bytes:
@@ -28,15 +26,12 @@ def test_other_frames_stay_portrait() -> None:
     assert sequence_scale([_jpeg(160, 200)] * 8) == "scale=1080:1350:flags=lanczos,format=yuv420p"
 
 
-def test_bed_peaks_under_a_tenth_of_full_scale() -> None:
-    data = bed_wav(16)
-    assert data[:4] == b"RIFF"
-    with wave.open(io.BytesIO(data)) as handle:
-        assert handle.getnchannels() == 2
-        assert handle.getframerate() == 48000
-        samples = memoryview(handle.readframes(handle.getnframes())).cast("h")
-    peak = max(abs(sample) for sample in samples)
-    assert 2000 <= peak <= 3200
+def test_music_slug_is_a_known_file() -> None:
+    path = music_path("river")
+    assert path is not None and path.name == "river.m4a"
+    assert music_path("quiet") is None
+    assert music_path("../server") is None
+    assert music_path("river.m4a") is None
 
 
 def _clip(exe: str, width: int, height: int, color: str) -> bytes:
@@ -60,7 +55,7 @@ def test_landscape_render_and_quiet_music() -> None:
     exe = ffmpeg_path()
     if not exe:
         pytest.skip("ffmpeg is not installed")
-    video = join_videos([_clip(exe, 1920, 1080, "0x1b3ed2")], music=True)
+    video = join_videos([_clip(exe, 1920, 1080, "0x1b3ed2")], music="river")
     probe = exe.replace("ffmpeg", "ffprobe") if exe.endswith("ffmpeg") else "ffprobe"
     probed = subprocess.run(
         [
@@ -84,3 +79,47 @@ def test_landscape_render_and_quiet_music() -> None:
     assert "max_volume:" in text
     loudness = float(text.split("max_volume:")[1].split("dB")[0].strip())
     assert -32 <= loudness <= -16
+
+
+def _tone(exe: str) -> bytes:
+    import tempfile
+    from pathlib import Path
+    with tempfile.TemporaryDirectory() as folder:
+        out = Path(folder) / "tone.m4a"
+        subprocess.run(
+            [
+                exe, "-y", "-hide_banner", "-loglevel", "error",
+                "-f", "lavfi", "-i", "sine=frequency=440:duration=2",
+                "-c:a", "aac", str(out),
+            ],
+            check=True,
+            timeout=30,
+            capture_output=True,
+        )
+        return out.read_bytes()
+
+
+def test_voiceover_keeps_the_picture_length() -> None:
+    exe = ffmpeg_path()
+    if not exe:
+        pytest.skip("ffmpeg is not installed")
+    video = join_videos([_clip(exe, 1920, 1080, "0x1b3ed2")], voice=_tone(exe), voice_level="normal")
+    probe = exe.replace("ffmpeg", "ffprobe") if exe.endswith("ffmpeg") else "ffprobe"
+    probed = subprocess.run(
+        [probe, "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", "-"],
+        input=video,
+        check=True,
+        timeout=30,
+        capture_output=True,
+    )
+    duration = float(probed.stdout.decode().strip())
+    assert 1.6 <= duration <= 2.6
+    with pytest.raises(ValueError):
+        join_videos([_clip(exe, 1080, 1350, "0x102c44")], voice=b"not-audio" * 40)
+
+
+def test_speech_rejects_an_unknown_voice() -> None:
+    with pytest.raises(ValueError):
+        speak("Hello from the laptop.", "../Samantha")
+    spoken = speak("Hello from the laptop.", "af_heart")
+    assert spoken.startswith(b"RIFF")

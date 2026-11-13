@@ -16,7 +16,23 @@ from pathlib import Path
 
 from cards import design_cards
 from documents import MAX_ATTACHMENT_BYTES, extract_document
-from media import ffmpeg_path, join_videos, parse_fps, render_mp4, render_sequence
+from media import (
+    MAX_VOICE_BYTES,
+    MUSIC_LEVELS,
+    MUSIC_TRACKS,
+    VOICE_LEVELS,
+    ffmpeg_path,
+    join_videos,
+    parse_fps,
+    render_mp4,
+    render_sequence,
+    forget_my_voice,
+    my_voice_status,
+    save_my_voice,
+    speak,
+    voice_catalog,
+    voice_preview,
+)
 from motion import (
     MAX_SCENES,
     scenes_from_payload,
@@ -576,12 +592,22 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self.handle_health()
             return
+        if path == "/api/voices":
+            self.handle_voices()
+            return
+        if path == "/api/my-voice":
+            self.send_json(200, my_voice_status())
+            return
         if path == "/":
             self.serve_file("index.html", "text/html; charset=utf-8")
             return
         if path in {"/styles.css", "/app.js", "/cards.js", "/motion.js", "/script.js", "/pics.js", "/stills.js", "/reel.js"}:
             content_type = "text/css; charset=utf-8" if path.endswith(".css") else "text/javascript; charset=utf-8"
             self.serve_file(path.lstrip("/"), content_type)
+            return
+        music_match = re.fullmatch(r"/music/([a-z]+)\.m4a", path)
+        if music_match and music_match.group(1) in MUSIC_TRACKS:
+            self.serve_file(f"music/{music_match.group(1)}.m4a", "audio/mp4")
             return
         self.send_error(404)
 
@@ -601,6 +627,15 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == "/api/stitch":
             self.handle_stitch()
+            return
+        if path == "/api/voice":
+            self.handle_voice()
+            return
+        if path == "/api/my-voice":
+            self.handle_my_voice()
+            return
+        if path == "/api/my-voice/forget":
+            self.send_json(200, forget_my_voice())
             return
         if path == "/api/pictures":
             self.handle_pictures()
@@ -735,8 +770,14 @@ class Handler(BaseHTTPRequestHandler):
             return
         body = self.rfile.read(length)
         try:
-            videos, music = stitch_parts(self.headers.get("Content-Type", ""), body)
-            data = join_videos(videos, music=music)
+            videos, music, level, voice_file, voice_mode, voice_text, voice_name, voice_level = stitch_parts(
+                self.headers.get("Content-Type", ""),
+                body,
+            )
+            voice = voice_file
+            if voice is None and voice_mode == "tts":
+                voice = speak(voice_text, voice_name)
+            data = join_videos(videos, music=music, level=level, voice=voice, voice_level=voice_level)
         except ValueError as exc:
             self.send_json(400, {"error": str(exc)})
             return
@@ -744,6 +785,56 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "video/mp4")
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Content-Disposition", 'attachment; filename="linkedin-explainer.mp4"')
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(data)
+
+    def handle_my_voice(self) -> None:
+        """Save or re-learn the user's voice sample. One sample is kept; a new upload replaces it."""
+        length = int(self.headers.get("Content-Length", "0") or "0")
+        if length <= 0 or length > MAX_VOICE_BYTES + 200_000:
+            self.send_json(413, {"error": "That recording is too large."})
+            return
+        body = self.rfile.read(length)
+        try:
+            recording = voice_from_multipart(self.headers.get("Content-Type", ""), body)
+            status = save_my_voice(recording)
+        except ValueError as exc:
+            self.send_json(400, {"error": str(exc)})
+            return
+        self.send_json(200, status)
+
+    def handle_voices(self) -> None:
+        self.send_json(200, {"voices": [{"id": name, "label": label} for name, label in voice_catalog()]})
+
+    def handle_voice(self) -> None:
+        length = int(self.headers.get("Content-Length", "0") or "0")
+        if length <= 0 or length > 20_000:
+            self.send_json(413, {"error": "That reading is too long."})
+            return
+        try:
+            payload = json.loads(self.rfile.read(length))
+        except json.JSONDecodeError:
+            self.send_json(400, {"error": "The reading could not be made."})
+            return
+        if not isinstance(payload, dict):
+            self.send_json(400, {"error": "The reading could not be made."})
+            return
+        text = payload.get("text")
+        voice = payload.get("voice")
+        level = payload.get("level")
+        if not isinstance(text, str) or not isinstance(voice, str):
+            self.send_json(400, {"error": "The reading could not be made."})
+            return
+        spoken_level = level if isinstance(level, str) and level in VOICE_LEVELS else "normal"
+        try:
+            data = voice_preview(text, voice, spoken_level)
+        except ValueError as exc:
+            self.send_json(400, {"error": str(exc)})
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "audio/mp4")
+        self.send_header("Content-Length", str(len(data)))
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(data)
@@ -1109,14 +1200,30 @@ def pictures_from_multipart(content_type: str, body: bytes) -> tuple[str, str, l
 
 
 def videos_from_multipart(content_type: str, body: bytes) -> list[bytes]:
-    videos, _music = stitch_parts(content_type, body)
+    videos, *_rest = stitch_parts(content_type, body)
     return videos
 
 
-def stitch_parts(content_type: str, body: bytes) -> tuple[list[bytes], bool]:
-    """Video bytes in card order, plus whether to mix the quiet music bed.
+def voice_from_multipart(content_type: str, body: bytes) -> bytes:
+    """The bytes of the single "voice" file field. The filename is never used as a path."""
+    match = re.search(r'boundary="?([^";]+)"?', content_type, re.I)
+    if not match:
+        raise ValueError("Choose a recording to save.")
+    boundary = match.group(1).encode("utf-8", errors="strict")
+    if not boundary or len(boundary) > 200:
+        raise ValueError("Choose a recording to save.")
+    for headers, content in split_multipart(body, boundary):
+        if disposition_value(headers.get("content-disposition", ""), "name") == "voice":
+            return content
+    raise ValueError("Choose a recording to save.")
 
-    The music field is accepted only as the exact word quiet. It never becomes a path or a command.
+
+def stitch_parts(
+    content_type: str, body: bytes
+) -> tuple[list[bytes], str | None, str, bytes | None, str, str, str, str]:
+    """Video bytes, music slug, music level, voice bytes, voice mode, speech text, voice name, voice level.
+
+    Music, voice name, and levels are accepted only from fixed catalogs. A recording is bytes, never a path.
     """
     match = re.search(r'boundary="?([^";]+)"?', content_type, re.I)
     if not match:
@@ -1125,13 +1232,38 @@ def stitch_parts(content_type: str, body: bytes) -> tuple[list[bytes], bool]:
     if not boundary or len(boundary) > 200:
         raise ValueError("The card videos were not valid.")
     videos: list[tuple[int, bytes]] = []
-    music = False
+    music = None
+    level = "medium"
+    voice_file: bytes | None = None
+    voice_mode = ""
+    voice_text = ""
+    voice_name = ""
+    voice_level = "normal"
     for headers, content in split_multipart(body, boundary):
         disposition = headers.get("content-disposition", "")
+        field = disposition_value(disposition, "name")
+        if field == "voice":
+            if len(content) < 100 or len(content) > MAX_VOICE_BYTES:
+                raise ValueError("That recording is empty or too large.")
+            voice_file = content
+            continue
         filename = disposition_filename(disposition)
         if filename is None:
-            if disposition_value(disposition, "name") == "music":
-                music = content.decode("utf-8", errors="replace").strip() == "quiet"
+            text = content.decode("utf-8", errors="replace").strip()
+            if field == "music":
+                music = text if text in MUSIC_TRACKS else None
+            elif field == "music_level":
+                level = text if text in MUSIC_LEVELS else "medium"
+            elif field == "voice_mode":
+                voice_mode = "tts" if text == "tts" else ""
+            elif field == "voice_text":
+                if len(content) > 20_000:
+                    raise ValueError("The post is too long to read aloud.")
+                voice_text = content.decode("utf-8", errors="replace")
+            elif field == "voice_name":
+                voice_name = text[:80]
+            elif field == "voice_level":
+                voice_level = text if text in VOICE_LEVELS else "normal"
             continue
         if len(content) > MAX_SCENE_VIDEO_BYTES:
             raise ValueError("One card video is too large.")
@@ -1142,7 +1274,16 @@ def stitch_parts(content_type: str, body: bytes) -> tuple[list[bytes], bool]:
     if not videos:
         raise ValueError("There are no card videos to join.")
     videos.sort(key=lambda item: item[0])
-    return [content for _, content in videos], music
+    return (
+        [content for _, content in videos],
+        music,
+        level,
+        voice_file,
+        voice_mode,
+        voice_text,
+        voice_name,
+        voice_level,
+    )
 
 
 def frames_from_multipart(content_type: str, body: bytes) -> list[bytes]:

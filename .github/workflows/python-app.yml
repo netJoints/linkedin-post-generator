@@ -1,7 +1,16 @@
-# This workflow will install Python dependencies, run tests and lint with a single version of Python
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
+# Lint and test: the check that runs on every push to main and every pull request to main.
+#
+# What it does, in order:
+#   1. Checks out the repo and installs Python 3.10.
+#   2. Installs flake8 and pytest, plus requirements.txt (empty: the app is standard library only).
+#   3. Lints with flake8. The first pass fails the run on syntax errors and undefined names.
+#      The second pass only reports style warnings, so it never fails the run.
+#   4. Runs the test suite with pytest. Tests that render video use ffmpeg, which the
+#      Ubuntu runner includes. The voice models and Ollama are not needed.
+#
+# The name below is what appears on the Actions page and on pull request checks.
 
-name: Python application
+name: Lint and test
 
 on:
   push:
@@ -13,12 +22,13 @@ permissions:
   contents: read
 
 jobs:
-  build:
-
+  lint-and-test:
+    name: Lint and test (Python 3.10, Ubuntu)
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - name: Check out the repository
+      uses: actions/checkout@v4
     - name: Set up Python 3.10
       uses: actions/setup-python@v3
       with:
@@ -28,12 +38,15 @@ jobs:
         python -m pip install --upgrade pip
         pip install flake8 pytest
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-    - name: Lint with flake8
+    - name: Lint with flake8 (blocking errors)
       run: |
         # stop the build if there are Python syntax errors or undefined names
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+    - name: Lint with flake8 (style warnings, not blocking)
+      run: |
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Test with pytest
       run: |
+        ffmpeg -version | head -n 1
         pytest

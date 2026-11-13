@@ -137,6 +137,83 @@
         </div>
         <p class="hint">Up to 10 pictures. JPEG, PNG, WEBP, GIF, or SVG. An animated GIF uses its first frame. Drag a row, or use Up and Down, to set the order. Landscape pictures keep a wide frame, and the whole picture stays visible. The model on this laptop reads them and writes the post. The files are not saved.</p>
         <ul id="pics-list" class="pics-list"></ul>
+        <div class="pics-video-options">
+          <label>
+            Transition
+            <select id="pics-transition">
+              <option value="crossfade">Crossfade</option>
+              <option value="slide">Slide</option>
+              <option value="wipe">Wipe</option>
+              <option value="push">Push</option>
+              <option value="zoom">Zoom</option>
+            </select>
+          </label>
+          <div class="music-field">
+            <label>
+              Background music
+              <select id="pics-music">
+                <option value="">None</option>
+                <option value="beat" selected>Meditating Beat</option>
+                <option value="river">River Meditation</option>
+                <option value="inspiration">Inspiration</option>
+                <option value="inventing">Inventing Flight</option>
+                <option value="energizing">Energizing</option>
+                <option value="celebration">Celebration</option>
+              </select>
+            </label>
+            <button type="button" id="pics-music-preview">Preview</button>
+          </div>
+          <label>
+            Music volume
+            <select id="pics-music-level">
+              <option value="low">Low</option>
+              <option value="medium" selected>Medium</option>
+              <option value="high">High</option>
+            </select>
+          </label>
+          <p class="hint span-all">Public-domain tracks (CC0, from FreePD). The track you pick is mixed into the downloaded video at this volume. Preview plays it here at the same volume.</p>
+          <audio id="pics-music-audio" preload="none"></audio>
+          <label>
+            Voiceover
+            <select id="pics-voice">
+              <option value="">None</option>
+              <option value="file">My recording</option>
+              <option value="tts">Read the post aloud</option>
+            </select>
+          </label>
+          <label id="pics-voice-level-label" hidden>
+            Voice volume
+            <select id="pics-voice-level">
+              <option value="soft">Soft</option>
+              <option value="normal" selected>Normal</option>
+              <option value="strong">Strong</option>
+            </select>
+          </label>
+          <div id="pics-voice-file-row" class="voice-row span-all" hidden>
+            <label class="file-button" for="pics-voice-file">Choose audio</label>
+            <input id="pics-voice-file" type="file" accept="audio/*,.mp3,.m4a,.aac,.wav,.aiff,.aif,.ogg,.webm,.caf">
+            <span id="pics-voice-filename" class="hint"></span>
+            <button type="button" id="pics-voice-preview">Preview</button>
+          </div>
+          <div id="pics-voice-tts-row" class="voice-row span-all" hidden>
+            <label>
+              Voice
+              <select id="pics-tts-voice"></select>
+            </label>
+            <button type="button" id="pics-tts-preview">Preview</button>
+          </div>
+          <div id="my-voice-panel" class="voice-row span-all">
+            <strong>My voice</strong>
+            <span id="my-voice-status" class="hint">Checking your saved sample.</span>
+            <label class="file-button" for="my-voice-file">Choose sample</label>
+            <input id="my-voice-file" type="file" accept="audio/*,.mp3,.m4a,.aac,.wav,.aiff,.aif,.ogg,.webm,.caf">
+            <span id="my-voice-filename" class="hint"></span>
+            <button type="button" id="my-voice-save" disabled>Save my voice</button>
+            <button type="button" id="my-voice-forget" hidden>Forget my voice</button>
+          </div>
+          <p class="hint span-all">A recording plays once from the start. Read the post aloud uses an AI voice that runs on this laptop. My voice copies the sample you saved once, so you do not upload it for each video. Save again to re-learn it. The sample stays on this laptop, outside the repo. The voice sits over the music, and the pictures keep their length.</p>
+          <audio id="pics-voice-audio" preload="none"></audio>
+        </div>
         <div class="actions">
           <button id="read-pictures" type="button">Read the pictures</button>
         </div>
@@ -202,23 +279,6 @@
           </div>
         </header>
         <textarea id="pics-post" rows="10" maxlength="4000" aria-label="Post from the pictures"></textarea>
-        <div class="pics-video-options">
-          <label>
-            Transition
-            <select id="pics-transition">
-              <option value="crossfade">Crossfade</option>
-              <option value="slide">Slide</option>
-              <option value="wipe">Wipe</option>
-              <option value="push">Push</option>
-              <option value="zoom">Zoom</option>
-            </select>
-          </label>
-          <label class="choice">
-            <input id="pics-music" type="checkbox" checked>
-            Quiet background music
-          </label>
-          <p class="hint">The music is made on this laptop and stays quiet under the pictures. It is mixed into the downloaded video.</p>
-        </div>
         <div class="actions script-actions">
           <button id="pics-play" type="button" disabled>Play</button>
           <button id="pics-download" type="button" hidden disabled>Download video</button>

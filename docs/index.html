@@ -242,6 +242,85 @@
           </aside>
         </section>
 
+        <section class="slide" data-title="Picture video">
+          <p class="kicker b" style="--d:0">Post via Pics</p>
+          <h2 class="b" style="--d:1">Up to ten pictures become one MP4, about eight seconds each.</h2>
+          <div class="grid-4 grow mt-m">
+            <article class="card accent-cyan b" style="--d:2">
+              <h3>Pictures</h3>
+              <p>Up to 10. JPEG, PNG, WebP, GIF, or SVG. Drag a row to reorder. The files are not saved.</p>
+            </article>
+            <article class="card accent-green b" style="--d:3">
+              <h3>Transitions</h3>
+              <p>Crossfade, slide, wipe, push, or zoom. Each takes 0.7 seconds between two pictures.</p>
+            </article>
+            <article class="card accent-violet b" style="--d:4">
+              <h3>Music</h3>
+              <p>Six public-domain tracks, with Low, Medium, and High volume.</p>
+            </article>
+            <article class="card accent-amber b" style="--d:5">
+              <h3>Voiceover</h3>
+              <p>Your recording, a local AI voice, or My voice. The voice is trimmed to the length of the pictures.</p>
+            </article>
+          </div>
+          <aside class="notes">
+            <p>The browser draws each picture. The server joins them with ffmpeg, and the music and voice are mixed in one pass. All of it stays on this laptop.</p>
+            <p>The post text sits on the pictures. URLs are removed so LinkedIn does not turn the post into a link preview.</p>
+          </aside>
+        </section>
+
+        <section class="slide" data-title="Music">
+          <p class="kicker b" style="--d:0">Background track</p>
+          <h2 class="b" style="--d:1">Six public-domain tracks. The voice always stays on top.</h2>
+          <ul class="ticks mt-m">
+            <li class="b" style="--d:2">Meditating Beat, River Meditation, Inspiration, Inventing Flight, Energizing, Celebration<small>Public domain, CC0, from FreePD.com. Credit is not required.</small></li>
+            <li class="b" style="--d:3">Low, Medium, or High volume<small>Medium is the default. The track loops to the video length and fades in and out.</small></li>
+            <li class="b" style="--d:4">Ducked under the voice<small>While the voiceover speaks, the music drops, so the speech stays clear.</small></li>
+            <li class="b" style="--d:5">No YouTube, no borrowed tracks<small>Only music with a licence that allows reuse is bundled.</small></li>
+          </ul>
+          <aside class="notes">
+            <p>The track list and the licence notes are in static/music/CREDITS.txt. Each file is the first 100 seconds, levelled so it sits under speech.</p>
+          </aside>
+        </section>
+
+        <section class="slide" data-title="AI voices">
+          <p class="kicker b" style="--d:0">Read the post aloud</p>
+          <h2 class="b" style="--d:1">A local AI voice reads the post. No Mac voices.</h2>
+          <div class="grid-3 grow mt-m">
+            <article class="card accent-cyan b" style="--d:2">
+              <h3>Kokoro-82M</h3>
+              <p>Six voices: Heart, Bella, Nicole, and Michael in US English, Emma and George in UK English. Apache-2.0. Fast on the CPU.</p>
+            </article>
+            <article class="card accent-green b" style="--d:3">
+              <h3>Chatterbox</h3>
+              <p>MIT, by Resemble AI. A default voice with a natural delivery. Slower to make. Each output carries an inaudible watermark.</p>
+            </article>
+            <article class="card accent-violet b" style="--d:4">
+              <h3>Chatterbox, my voice</h3>
+              <p>Chatterbox speaks with a sample of your voice. It appears after you save the sample once.</p>
+            </article>
+          </div>
+          <aside class="notes">
+            <p>Kokoro makes a post in seconds. Chatterbox on an Apple M4 Pro took about 30 seconds for a 6-second clip, after a 9-second model load. Plan for that on a long post.</p>
+            <p>Several other voice models were reviewed and left out, because their weights are limited to research or non-commercial use.</p>
+          </aside>
+        </section>
+
+        <section class="slide" data-title="My voice">
+          <p class="kicker b" style="--d:0">Save once, reuse in every video</p>
+          <h2 class="b" style="--d:1">One voice sample. Re-learn it any time.</h2>
+          <ul class="ticks mt-m">
+            <li class="b" style="--d:2">Choose a sample, then Save my voice<small>Record 15 to 30 seconds of you reading a paragraph in a quiet room.</small></li>
+            <li class="b" style="--d:3">Used automatically after that<small>Pick Chatterbox, my voice. You do not upload the sample for each video.</small></li>
+            <li class="b" style="--d:4">Re-learn with a better sample<small>Saving again replaces the old one.</small></li>
+            <li class="b" style="--d:5">Forget it at any time<small>The file is deleted, and the option leaves the list.</small></li>
+          </ul>
+          <aside class="notes">
+            <p>This does not train a model. Chatterbox copies the voice from the saved sample on each run, so a clean sample matters more than a long one.</p>
+            <p>The sample is stored under ~/.linkedin-tts/my-voice, outside the repo. Only use a voice you have permission to copy.</p>
+          </aside>
+        </section>
+
         <section class="slide" data-title="Run it">
           <p class="kicker b" style="--d:0">On the laptop</p>
           <h2 class="b" style="--d:1">Install a model, start the desk, paste the draft yourself.</h2>
@@ -253,7 +332,7 @@
           <p class="lede mt-m b" style="--d:5"><a class="c-cyan" href="https://github.com/netJoints/linkedin-post-generator">github.com/netJoints/linkedin-post-generator</a></p>
           <div class="big-num">Q&amp;A</div>
           <aside class="notes">
-            <p>There is nothing to pip install. Python 3.10 or newer. The app uses the standard library only.</p>
+            <p>The app itself needs nothing to pip install. Python 3.10 or newer. The local voices have their own setup, in the README.</p>
             <p>Leave Ollama running. If the page says Ollama is not running, open the Ollama app or run ollama serve, then reload.</p>
           </aside>
         </section>
